@@ -5,13 +5,13 @@ import React, { useState } from 'react' // Import React for FormEvent
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import { Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // ✅ Añadido confirmPassword
 interface FormData {
     userName: string
-    name: string
     phone: string
     password: string
     confirmPassword: string // Nuevo campo
@@ -20,12 +20,12 @@ interface FormData {
 // Interfaz para errores de formulario
 interface FormErrors {
     [key: string]: string | undefined; // Permite acceder con claves string
-}
+} 
 
 
 export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: boolean, onClose: () => void, onOpenLogin: () => void }) {
     // ✅ Estado inicial con confirmPassword
-    const [formData, setFormData] = useState<FormData>({ userName: '', name: '', phone: '', password: '', confirmPassword: '' })
+    const [formData, setFormData] = useState<FormData>({ userName: '', phone: '', password: '', confirmPassword: '' })
     const [isLoading, setIsLoading] = useState(false)
     const [serverError, setServerError] = useState('')
     const [successMessage, setSuccessMessage] = useState('')
@@ -36,7 +36,6 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
     const validateForm = (): boolean => {
         const newErrors: FormErrors = {};
         if (!formData.userName.trim()) newErrors.userName = 'Usuario requerido';
-        if (!formData.name.trim()) newErrors.name = 'Nombre requerido';
         if (!formData.phone.trim()) newErrors.phone = 'Teléfono requerido';
         if (!formData.password) newErrors.password = 'Contraseña requerida';
         else if (formData.password.length < 6) newErrors.password = 'Contraseña debe tener al menos 6 caracteres';
@@ -74,8 +73,8 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
         try {
             // Preparamos los datos a enviar (sin confirmPassword)
             const dataToSend = {
-                userName: formData.userName,
-                name: formData.name,
+                userName: formData.userName.trim(),
+                name: formData.userName.trim(),
                 phone: formData.phone,
                 password: formData.password,
             };
@@ -94,7 +93,7 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
             }
 
             setSuccessMessage('Registro exitoso. Serás redirigido al inicio de sesión.')
-            setFormData({ userName: '', name: '', phone: '', password: '', confirmPassword: '' }) // Limpiar formulario completo
+            setFormData({ userName: '', phone: '', password: '', confirmPassword: '' }) // Limpiar formulario completo
             
             setTimeout(() => {
                 onClose();
@@ -110,52 +109,54 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[400px]">
-                <DialogHeader>
-                    <DialogTitle>Registro de Cliente</DialogTitle>
-                    <DialogDescription>Crea tu cuenta para comprar nuestras gomitas.</DialogDescription>
+            <DialogContent
+                className={cn(
+                    "w-full max-w-xl sm:max-w-lg !left-0 !right-0 !bottom-0 !top-auto !translate-x-0 !translate-y-0 rounded-t-[32px] border-none shadow-[0_-20px_60px_rgba(0,0,0,0.45)] backdrop-blur-md px-6 py-6 data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-full data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-full sm:!left-1/2 sm:!top-1/2 sm:!bottom-auto sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-[32px]",
+                    "bg-white/95 text-foreground",
+                    "dark:bg-[#221e10]/95 dark:text-[#f8f4e6]"
+                )}
+            >
+                <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-muted dark:bg-[#3d2f1a]" aria-hidden />
+                <DialogHeader className="space-y-1 text-left">
+                    <DialogTitle className="text-1xl font-semibold text-primary">Crear Cuenta</DialogTitle>
                 </DialogHeader>
                 
-                {serverError && <p className="text-destructive text-sm font-medium p-2 bg-destructive/10 rounded">{serverError}</p>}
-                {successMessage && <p className="text-green-600 bg-green-100 p-2 rounded text-sm font-medium">{successMessage}</p>}
+                {serverError && <p className="text-destructive text-sm font-medium px-3 py-2 bg-destructive/10 dark:bg-destructive/15 border border-destructive/30 rounded-xl">{serverError}</p>}
+                {successMessage && <p className="text-foreground dark:text-[#f8f4e6] text-sm font-medium px-3 py-2 bg-muted/70 dark:bg-[#3c3323] border border-primary/30 rounded-xl">{successMessage}</p>}
 
-                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                <form onSubmit={handleSubmit} className="space-y-4 pt-4 max-h-[68vh] overflow-y-auto pr-1">
                     {/* Campos individuales para mejor control */}
                     <div className="space-y-2">
-                        <Label htmlFor="userName">Usuario</Label>
-                        <Input id="userName" value={formData.userName} onChange={handleInputChange('userName')} required className={errors.userName ? 'border-destructive' : ''}/>
-                        {errors.userName && <p className="text-destructive text-xs">{errors.userName}</p>}
+                        <Label htmlFor="userName" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Nombre de usuario</Label>
+                        <Input id="userName" value={formData.userName} onChange={handleInputChange('userName')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.userName && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                         {errors.userName && <p className="text-destructive text-xs font-medium">{errors.userName}</p>}
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="name">Nombre Completo</Label>
-                        <Input id="name" value={formData.name} onChange={handleInputChange('name')} required className={errors.name ? 'border-destructive' : ''}/>
-                         {errors.name && <p className="text-destructive text-xs">{errors.name}</p>}
+                        <Label htmlFor="phone" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Teléfono</Label>
+                        <Input id="phone" type="tel" value={formData.phone} onChange={handleInputChange('phone')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.phone && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                         {errors.phone && <p className="text-destructive text-xs font-medium">{errors.phone}</p>}
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="phone">Teléfono</Label>
-                        <Input id="phone" type="tel" value={formData.phone} onChange={handleInputChange('phone')} required className={errors.phone ? 'border-destructive' : ''}/>
-                         {errors.phone && <p className="text-destructive text-xs">{errors.phone}</p>}
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="password">Contraseña</Label>
-                        <Input id="password" type="password" value={formData.password} onChange={handleInputChange('password')} required className={errors.password ? 'border-destructive' : ''}/>
-                         {errors.password && <p className="text-destructive text-xs">{errors.password}</p>}
+                        <Label htmlFor="password" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Contraseña</Label>
+                        <Input id="password" type="password" value={formData.password} onChange={handleInputChange('password')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.password && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                         {errors.password && <p className="text-destructive text-xs font-medium">{errors.password}</p>}
                     </div>
                     {/* ✅ Campo de Confirmar Contraseña */}
                     <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
-                        <Input id="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleInputChange('confirmPassword')} required className={errors.confirmPassword ? 'border-destructive' : ''}/>
-                        {errors.confirmPassword && <p className="text-destructive text-xs">{errors.confirmPassword}</p>}
+                        <Label htmlFor="confirmPassword" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Confirmar Contraseña</Label>
+                        <Input id="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleInputChange('confirmPassword')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.confirmPassword && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                        {errors.confirmPassword && <p className="text-destructive text-xs font-medium">{errors.confirmPassword}</p>}
                     </div>
                     
-                    <Button type="submit" disabled={isLoading} className="w-full">
+                    <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-full bg-[#FAC638] text-[#221e10] text-base font-semibold shadow-[0_10px_30px_rgba(250,198,56,0.4)] hover:bg-[#fbd25a]">
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Crear Cuenta'}
                     </Button>
                 </form>
 
-                <div className='flex justify-center text-sm pt-2'>
-                    <Button variant="link" onClick={() => { onClose(); onOpenLogin(); }}>
-                        ¿Ya tienes cuenta? Iniciar Sesión
+                <div className='flex flex-col items-center gap-2 pt-5 text-sm text-muted-foreground dark:text-[#d9ceb0]'>
+                    <span>¿Ya tienes cuenta?</span>
+                    <Button variant="ghost" className="text-[#d39f10] hover:text-[#b98209] font-semibold" onClick={() => { onClose(); onOpenLogin(); }}>
+                        Iniciar Sesión
                     </Button>
                 </div>
             </DialogContent>

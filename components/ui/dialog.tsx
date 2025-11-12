@@ -21,7 +21,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-background/70 dark:bg-black/70 supports-[backdrop-filter]:backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -45,7 +45,7 @@ const DialogContent = React.forwardRef<
       onOpenAutoFocus={(e) => {
         if (typeof onOpenAutoFocus === 'function') {
           // If a consumer passed their own handler, call it first.
-          try { onOpenAutoFocus(e); } catch (err) { /* ignore */ }
+          try { onOpenAutoFocus(e); } catch { /* ignore */ }
         }
         // If the event wasn't prevented by the consumer, prevent default to avoid autofocus
         if (!e.defaultPrevented) e.preventDefault();

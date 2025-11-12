@@ -63,7 +63,7 @@ const DesktopNavLinks = ({
         return null;
       }
 
-      const itemClasses = `${commonClasses} flex items-center gap-1 ${isActive(link.href) ? activeClasses : ''}`;
+      const baseClasses = `${commonClasses} ${isActive(link.href) ? activeClasses : ''}`;
 
       if (link.href === '/profile') {
         if (status === 'authenticated') {
@@ -71,7 +71,7 @@ const DesktopNavLinks = ({
             <Link
               key={link.href}
               href={link.href}
-              className={`${itemClasses} justify-center`}
+              className={`${baseClasses} flex items-center gap-2 justify-center`}
               title="Ver perfil"
             >
               <div className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground font-semibold text-sm">
@@ -87,7 +87,7 @@ const DesktopNavLinks = ({
             key={link.href}
             type="button"
             onClick={onLogin}
-            className={`${commonClasses} flex items-center justify-center gap-1 text-foreground`}
+            className={`${baseClasses} flex items-center justify-center gap-1 text-foreground`}
             title="Iniciar sesión"
           >
             <User className="h-6 w-6" />
@@ -96,11 +96,9 @@ const DesktopNavLinks = ({
         );
       }
 
-      const Icon = link.icon;
       return (
-        <Link key={link.href} href={link.href} className={itemClasses}>
-          <Icon className="h-6 w-6" />
-          <span>{link.label}</span>
+        <Link key={link.href} href={link.href} className={baseClasses}>
+          {link.label}
         </Link>
       );
     })}

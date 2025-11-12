@@ -224,7 +224,16 @@ export default function CatalogPage() {
         setTimeout(() => globalThis.dispatchEvent(new Event('cartUpdate')), 0);
     };
 
-    const filters = ["All", "Sweet", "Sour", "New", "Tropical"];
+    const filterOptions = useMemo(() => (
+        [
+            { value: "All", label: "Todos los sabores" },
+            { value: "Mango", label: "Mango" },
+            { value: "Fresa", label: "Fresa" },
+            { value: "Arándano", label: "Arándano" },
+            { value: "Limón", label: "Limón" },
+            { value: "Piña", label: "Piña" },
+        ]
+    ), []);
 
     // Content for products rendering
     let content;
@@ -251,45 +260,74 @@ export default function CatalogPage() {
             {/* --- LAYOUT DEL CATÁLOGO --- */}
             <main className="min-h-screen bg-background"> 
 
-                {/* Barra de Búsqueda (CORREGIDA CON DEBOUNCE) */}
-                <div className="px-4 py-3 max-w-xl mx-auto"> 
-                    <label className="flex flex-col min-w-40 h-14 w-full">
-                        <div className="flex w-full flex-1 items-stretch rounded-full h-full border-2 border-zinc-600">
-                            <div className="text-zinc-500 dark:text-zinc-400 flex border-none bg-primary dark:bg-zinc-800 items-center justify-center pl-5 rounded-l-full border-r-0">
-                                <Search className="h-5 w-5" />
-                            </div>
-                            <input 
-                                className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-full text-black dark:text-zinc-200 focus:outline-0 focus:ring-0 border-none bg-primary dark:bg-zinc-800 focus:border-none h-full placeholder:text-zinc-600 dark:placeholder:text-zinc-400 px-4 text-base font-normal" 
-                                placeholder="Buscar productos..." 
-                                aria-label="Buscar productos"
-                                value={localSearchTerm} // VINCULADO AL ESTADO LOCAL
-                                // Actualiza el estado local, lo que activa el Debounce
-                                onChange={(e) => setLocalSearchTerm(e.target.value)} 
-                            />
-                        </div>
-                    </label>
-                </div>
-
-                {/* Filtros de Categoría (Mantenido: Usa el 'searchTerm' real) */}
-                <div className="px-4 py-2">
-                    <div className="flex gap-3 overflow-x-auto whitespace-nowrap justify-start lg:justify-center">
-                        {filters.map((filter) => (
-                            <button 
-                                key={filter}
-                                onClick={() => handleSearchOrFilterChange(searchTerm, filter)}
-                                className={`flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-full px-5 transition-colors ${
-                                    activeFilter === filter 
-                                    ? 'bg-yellow-500 text-zinc-900' 
-                                    : 'bg-gray-100 dark:bg-zinc-800 text-black dark:text-zinc-200 hover:bg-gray-200 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
-                                }`}
-                            >
-                                <p className={`text-sm leading-normal font-bold`}>
-                                    {filter}
+                {/* Hero solo escritorio inspirado en "Prueba la Fruta Real" */}
+                <section className="hidden lg:block border-b border-zinc-200/70 dark:border-zinc-800 bg-gradient-to-r from-yellow-100 via-amber-50 to-orange-50 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-900">
+                    <div className="max-w-5xl mx-auto px-12 py-8 grid grid-cols-[1fr_minmax(320px,420px)] gap-10 items-center">
+                        <div className="space-y-6">
+                            <div className="space-y-3">
+                                <h1 className="text-5xl font-black leading-tight tracking-[-0.03em] text-zinc-900 dark:text-zinc-50">
+                                    Prueba la fruta real.
+                                </h1>
+                                <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-xl">
+                                    Gomitas deliciosamente suaves hechas 100% de pulpa de fruta natural. Nada artificial.
                                 </p>
-                            </button>
-                        ))}
+                            </div>
+                        </div>
+                        <div className="relative w-full min-w-[320px] max-w-[220px] aspect-[4/3] overflow-hidden rounded-[2rem] shadow-xl justify-self-end">
+                            <div
+                                aria-hidden="true"
+                                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 hover:scale-[1.02]"
+                                style={{
+                                    backgroundImage:
+                                        'url("https://lh3.googleusercontent.com/aida-public/AB6AXuDyvKnFeLGWgnr09xS4Kmfcwf1R1hZbjVJIdq4Y7qkIcXUm8Nht3ovLwVGI09Zy5sPwnYtma2E9K3TFXNeBsJ8_A4DQVrLTrijvqBHNPvrJfqjjYnXyIqeA2zXiys7ul9_lC_Nf__N4alRYnVBcUTr0vDhkeFLDIaiyDhT3NRTX-8LcaIRzkG1MUlFEqXJ9_GC4XYbsmMWI91WbZ0txuxPE6oRh4k9WXlc_EzmpuwvpFSIoIed9oDmvjLKu49BNsLGQRybnzlrCnIyd")'
+                                }}
+                            />
+                            <span className="sr-only">Pila vibrante y colorida de gomitas de pulpa de fruta sobre una superficie limpia y clara</span>
+                        </div>
                     </div>
-                </div>
+                </section>
+
+                {/* Búsqueda y filtros */}
+                <section className="px-4 py-8">
+                    <div className="max-w-6xl mx-auto space-y-4">
+                        <header className="space-y-1 hidden lg:block">
+                            <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Nuestra colección de Gomitas</h2>
+                        </header>
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6 lg:flex-nowrap">
+                            <label className="flex flex-col min-w-40 h-14 w-full lg:flex-1">
+                                <div className="flex w-full flex-1 items-stretch rounded-full h-full border-2 border-zinc-600">
+                                    <div className="text-zinc-500 dark:text-zinc-400 flex border-none bg-primary dark:bg-zinc-800 items-center justify-center pl-5 rounded-l-full border-r-0">
+                                        <Search className="h-5 w-5" />
+                                    </div>
+                                    <input 
+                                        className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-full text-black dark:text-zinc-200 focus:outline-0 focus:ring-0 border-none bg-primary dark:bg-zinc-800 focus:border-none h-full placeholder:text-zinc-600 dark:placeholder:text-zinc-400 px-4 text-base font-normal" 
+                                        placeholder="Buscar productos..." 
+                                        aria-label="Buscar productos"
+                                        value={localSearchTerm} // VINCULADO AL ESTADO LOCAL
+                                        onChange={(e) => setLocalSearchTerm(e.target.value)} 
+                                    />
+                                </div>
+                            </label>
+                            <div className="flex gap-3 overflow-x-auto whitespace-nowrap justify-start lg:flex-1 lg:overflow-visible lg:whitespace-nowrap lg:justify-start">
+                                {filterOptions.map((filterOption) => (
+                                    <button 
+                                        key={filterOption.value}
+                                        onClick={() => handleSearchOrFilterChange(searchTerm, filterOption.value)}
+                                        className={`flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-full px-5 transition-colors ${
+                                            activeFilter === filterOption.value 
+                                            ? 'bg-yellow-500 text-zinc-900' 
+                                            : 'bg-gray-100 dark:bg-zinc-800 text-black dark:text-zinc-200 hover:bg-gray-200 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
+                                        }`}
+                                    >
+                                        <p className={`text-sm leading-normal font-bold`}>
+                                            {filterOption.label}
+                                        </p>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </section>
                 
 
                 {/* --- Renderizado de Productos (Mantenido) --- */}

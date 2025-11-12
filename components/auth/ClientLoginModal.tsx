@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 
 // Definición de las props
@@ -53,47 +54,71 @@ export function ClientLoginModal({ isOpen, onClose, onLoginSuccess, onOpenRegist
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[400px] bg-black text-white">
-                <DialogHeader>
-                <DialogTitle className="text-white">Iniciar Sesión Cliente</DialogTitle>
-                <DialogDescription className="text-gray-300">Accede a tu carrito y historial de pedidos.</DialogDescription>
+            <DialogContent
+                className={cn(
+                    "w-full max-w-xl sm:max-w-md !left-0 !right-0 !bottom-0 !top-auto !translate-x-0 !translate-y-0 rounded-t-[32px] border-none shadow-[0_-20px_60px_rgba(0,0,0,0.45)] backdrop-blur-md px-6 py-8 data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-full data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-full sm:!left-1/2 sm:!top-1/2 sm:!bottom-auto sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-[32px]",
+                    "bg-white/95 text-foreground",
+                    "dark:bg-[#221e10]/95 dark:text-[#f8f4e6]"
+                )}
+            >
+                <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-muted dark:bg-[#3d2f1a]" aria-hidden />
+                <DialogHeader className="space-y-1 text-left">
+                    <DialogTitle className="text-2xl font-semibold text-primary">Iniciar Sesión</DialogTitle>
+                    <DialogDescription className="text-sm text-muted-foreground dark:text-[#d9ceb0]">
+                        Ingresa tus credenciales para continuar con tu compra.
+                    </DialogDescription>
                 </DialogHeader>
-                
-                {error && <p className="text-destructive text-sm font-medium">{error}</p>}
 
-                <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                {error && (
+                    <p className="text-destructive text-sm font-medium bg-destructive/10 dark:bg-destructive/15 border border-destructive/30 rounded-xl px-3 py-2">
+                        {error}
+                    </p>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-5 pt-4">
                     <div className="space-y-2">
-                        <Label htmlFor="userName" className="text-gray-200">Usuario</Label>
+                        <Label htmlFor="userName" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">
+                            Usuario
+                        </Label>
                         <Input
                             id="userName"
                             type="text"
                             value={formData.userName}
                             onChange={e => setFormData(d => ({ ...d, userName: e.target.value }))}
                             required
-                            className="bg-gray-800 text-white"
+                            className="h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]"
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="password" className="text-gray-200">Contraseña</Label>
+                        <Label htmlFor="password" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">
+                            Contraseña
+                        </Label>
                         <Input
                             id="password"
                             type="password"
                             value={formData.password}
                             onChange={e => setFormData(d => ({ ...d, password: e.target.value }))}
                             required
-                            className="bg-gray-800 text-white"
+                            className="h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]"
                         />
                     </div>
-                    
-                    <Button type="submit" disabled={isLoading} className="w-full">
+
+                    <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-full bg-[#FAC638] text-[#221e10] text-base font-semibold shadow-[0_10px_30px_rgba(250,198,56,0.4)] hover:bg-[#fbd25a]">
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
                     </Button>
                 </form>
 
-                <div className='flex justify-center text-sm pt-2'>
-                    {/* ✅ Llama a la función que cierra este modal y abre el de registro */}
-                    <Button variant="link" onClick={() => { onClose(); onOpenRegister(); }}>
-                        ¿No tienes cuenta? Regístrate
+                <div className="flex flex-col items-center gap-2 pt-6 text-sm text-muted-foreground dark:text-[#d9ceb0]">
+                    <span>¿No tienes cuenta?</span>
+                    <Button
+                        variant="ghost"
+                        className="text-[#d39f10] hover:text-[#b98209] font-semibold"
+                        onClick={() => {
+                            onClose()
+                            onOpenRegister()
+                        }}
+                    >
+                        Regístrate ahora
                     </Button>
                 </div>
             </DialogContent>
