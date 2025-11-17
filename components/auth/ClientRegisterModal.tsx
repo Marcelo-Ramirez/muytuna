@@ -111,51 +111,52 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
                 className={cn(
-                    "w-full max-w-xl sm:max-w-lg !left-0 !right-0 !bottom-0 !top-auto !translate-x-0 !translate-y-0 rounded-t-[32px] border-none shadow-[0_-20px_60px_rgba(0,0,0,0.45)] backdrop-blur-md px-6 py-6 data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-full data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-full sm:!left-1/2 sm:!top-1/2 sm:!bottom-auto sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-[32px]",
+                    "w-full max-w-lg sm:max-w-md !left-0 !right-0 !bottom-0 !top-auto !translate-x-0 !translate-y-0 rounded-t-[24px] border-none shadow-[0_-16px_42px_rgba(0,0,0,0.45)] backdrop-blur-md px-5 pt-4 pb-5 data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-full data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom-full sm:!left-1/2 sm:!top-1/2 sm:!bottom-auto sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-[24px]",
                     "bg-white/95 text-foreground",
-                    "dark:bg-[#221e10]/95 dark:text-[#f8f4e6]"
+                    "dark:bg-[#221e10]/95 dark:text-[#f8f4e6]",
+                    "[&>button]:hidden"
                 )}
             >
-                <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-muted dark:bg-[#3d2f1a]" aria-hidden />
-                <DialogHeader className="space-y-1 text-left">
-                    <DialogTitle className="text-1xl font-semibold text-primary">Crear Cuenta</DialogTitle>
+                <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-muted dark:bg-[#3d2f1a]" aria-hidden />
+                <DialogHeader className="space-y-0.5 text-left">
+                    <DialogTitle className="text-lg font-semibold text-primary">Crear Cuenta</DialogTitle>
                 </DialogHeader>
                 
                 {serverError && <p className="text-destructive text-sm font-medium px-3 py-2 bg-destructive/10 dark:bg-destructive/15 border border-destructive/30 rounded-xl">{serverError}</p>}
                 {successMessage && <p className="text-foreground dark:text-[#f8f4e6] text-sm font-medium px-3 py-2 bg-muted/70 dark:bg-[#3c3323] border border-primary/30 rounded-xl">{successMessage}</p>}
 
-                <form onSubmit={handleSubmit} className="space-y-4 pt-4 max-h-[68vh] overflow-y-auto pr-1">
+                <form onSubmit={handleSubmit} className="space-y-3 pt-2">
                     {/* Campos individuales para mejor control */}
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                         <Label htmlFor="userName" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Nombre de usuario</Label>
-                        <Input id="userName" value={formData.userName} onChange={handleInputChange('userName')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.userName && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                        <Input id="userName" value={formData.userName} onChange={handleInputChange('userName')} required className={cn('h-11 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.userName && 'border-destructive focus:border-destructive focus:ring-destructive')} />
                          {errors.userName && <p className="text-destructive text-xs font-medium">{errors.userName}</p>}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                         <Label htmlFor="phone" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Teléfono</Label>
-                        <Input id="phone" type="tel" value={formData.phone} onChange={handleInputChange('phone')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.phone && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                        <Input id="phone" type="tel" value={formData.phone} onChange={handleInputChange('phone')} required className={cn('h-11 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.phone && 'border-destructive focus:border-destructive focus:ring-destructive')} />
                          {errors.phone && <p className="text-destructive text-xs font-medium">{errors.phone}</p>}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                         <Label htmlFor="password" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Contraseña</Label>
-                        <Input id="password" type="password" value={formData.password} onChange={handleInputChange('password')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.password && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                        <Input id="password" type="password" value={formData.password} onChange={handleInputChange('password')} required className={cn('h-11 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.password && 'border-destructive focus:border-destructive focus:ring-destructive')} />
                          {errors.password && <p className="text-destructive text-xs font-medium">{errors.password}</p>}
                     </div>
                     {/* ✅ Campo de Confirmar Contraseña */}
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                         <Label htmlFor="confirmPassword" className="text-sm font-semibold text-muted-foreground dark:text-[#e8dcba]">Confirmar Contraseña</Label>
-                        <Input id="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleInputChange('confirmPassword')} required className={cn('h-12 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.confirmPassword && 'border-destructive focus:border-destructive focus:ring-destructive')} />
+                        <Input id="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleInputChange('confirmPassword')} required className={cn('h-11 rounded-2xl border border-border bg-muted/60 text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary dark:border-[#3d2f1a] dark:bg-[#2c2214] dark:text-[#fdf6dd] dark:placeholder:text-[#cbbf9b]', errors.confirmPassword && 'border-destructive focus:border-destructive focus:ring-destructive')} />
                         {errors.confirmPassword && <p className="text-destructive text-xs font-medium">{errors.confirmPassword}</p>}
                     </div>
                     
-                    <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-full bg-[#FAC638] text-[#221e10] text-base font-semibold shadow-[0_10px_30px_rgba(250,198,56,0.4)] hover:bg-[#fbd25a]">
+                    <Button type="submit" disabled={isLoading} className="w-full h-11 rounded-full bg-[#FAC638] text-[#221e10] text-sm font-semibold shadow-[0_8px_24px_rgba(250,198,56,0.35)] hover:bg-[#fbd25a]">
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Crear Cuenta'}
                     </Button>
                 </form>
 
-                <div className='flex flex-col items-center gap-2 pt-5 text-sm text-muted-foreground dark:text-[#d9ceb0]'>
+                <div className='flex flex-col items-center gap-1.5 pt-3 text-xs text-muted-foreground dark:text-[#d9ceb0]'>
                     <span>¿Ya tienes cuenta?</span>
-                    <Button variant="ghost" className="text-[#d39f10] hover:text-[#b98209] font-semibold" onClick={() => { onClose(); onOpenLogin(); }}>
+                    <Button variant="ghost" className="text-[#d39f10] hover:text-[#b98209] font-medium text-sm" onClick={() => { onClose(); onOpenLogin(); }}>
                         Iniciar Sesión
                     </Button>
                 </div>
