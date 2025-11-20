@@ -12,14 +12,18 @@ datasource db {
 
 model User {
   id                 Int                 @id @default(autoincrement())
-  userName           String              @unique @map("userName")
+  userName           String              @unique @default(cuid()) @map("userName")
   name               String
   phone              String?
-  password           String
+  email              String?             @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
   statusAccount      String              @default("active") @map("statusAccount")
   role               String              @default("cliente")
   twoFactorSecret    String?             @map("twoFactorSecret")
   twoFactorEnabled   Boolean             @default(false) @map("twoFactorEnabled")
+  userNameGenerated  Boolean             @default(false) @map("userNameGenerated")
   createdAt          DateTime            @default(now()) @map("createdAt")
   updatedAt          DateTime            @updatedAt @map("updatedAt")
 
@@ -28,8 +32,52 @@ model User {
   saleOrders         SaleOrder[]
   productMovements   ProductMovement[]
   saleProducts       SaleProduct[]
+  accounts           Account[]
+  sessions           Session[]
 
   @@map("Users")
+}
+
+model Account {
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+  oauth_token_secret String?
+  oauth_token        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("Accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("Sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("VerificationTokens")
 }
 
 model Ingredient {

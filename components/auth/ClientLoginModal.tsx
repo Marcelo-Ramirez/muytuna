@@ -2,6 +2,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,7 +22,10 @@ interface ClientLoginModalProps {
 export function ClientLoginModal({ isOpen, onClose, onLoginSuccess, onOpenRegister }: ClientLoginModalProps) {
     const [formData, setFormData] = useState({ userName: '', password: '' })
     const [isLoading, setIsLoading] = useState(false)
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false)
     const [error, setError] = useState('')
+    const searchParams = useSearchParams()
+    const oauthAccountNotLinked = searchParams?.get('error') === 'OAuthAccountNotLinked'
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -52,6 +56,19 @@ export function ClientLoginModal({ isOpen, onClose, onLoginSuccess, onOpenRegist
         }
     }
 
+    const handleGoogleAuth = async () => {
+        setError('')
+        setIsGoogleLoading(true)
+        try {
+            await signIn('google', {
+                callbackUrl: '/',
+            })
+        } catch {
+            setError('No se pudo conectar con Google en este momento.')
+            setIsGoogleLoading(false)
+        }
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
@@ -69,6 +86,12 @@ export function ClientLoginModal({ isOpen, onClose, onLoginSuccess, onOpenRegist
                         Ingresa tus credenciales para continuar con tu compra.
                     </DialogDescription>
                 </DialogHeader>
+
+                {oauthAccountNotLinked && (
+                    <p className="text-sm font-medium text-amber-900 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2">
+                        Este correo ya tiene una cuenta con otro método. Ingresa con tu usuario/contraseña.
+                    </p>
+                )}
 
                 {error && (
                     <p className="text-destructive text-sm font-medium bg-destructive/10 dark:bg-destructive/15 border border-destructive/30 rounded-xl px-3 py-2">
@@ -108,6 +131,25 @@ export function ClientLoginModal({ isOpen, onClose, onLoginSuccess, onOpenRegist
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
                     </Button>
                 </form>
+
+                <div className="pt-3 w-full">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isGoogleLoading}
+                        className="h-10 w-full rounded-full border-dashed text-xs font-semibold text-muted-foreground hover:text-foreground"
+                        onClick={handleGoogleAuth}
+                    >
+                        {isGoogleLoading ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Conectando con Google...
+                            </span>
+                        ) : (
+                            'Registrarse o iniciar sesión con Google'
+                        )}
+                    </Button>
+                </div>
 
                 <div className="flex flex-col items-center gap-1.5 pt-3 text-xs text-muted-foreground dark:text-[#d9ceb0]">
                     <span>¿No tienes cuenta?</span>

@@ -7,7 +7,10 @@ DELETE FROM "Inventory_movements";
 DELETE FROM "Product_movements";
 DELETE FROM "Products";
 DELETE FROM "Ingredients";
-
+/* DELETE FROM "Users";
+DELETE FROM "Accounts";
+DELETE FROM "VerificationTokens";
+DELETE FROM "Sessions"; */
 
 
 -- Reinicia los contadores de autoincremento de las tablas

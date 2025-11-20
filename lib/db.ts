@@ -10,6 +10,7 @@ export interface User {
   role: string;
   twoFactorEnabled: boolean;
   twoFactorSecret?: string | null;
+  userNameGenerated: boolean;
   createdAt: Date;
 }
 
@@ -19,7 +20,14 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 // Función para crear un nuevo usuario
-export async function createUser(userName: string, name: string, password: string, phone?: string, role: string = 'cliente'): Promise<User | null> {
+export async function createUser(
+  userName: string, 
+  name: string, 
+  password: string, 
+  phone?: string, 
+  role: string = 'cliente',
+  userNameGenerated: boolean = false
+): Promise<User | null> {
   try {
     const existingUser = await prisma.user.findUnique({ where: { userName } });
     if (existingUser) throw new Error("El usuario ya existe");
@@ -27,7 +35,14 @@ export async function createUser(userName: string, name: string, password: strin
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const newUser = await prisma.user.create({
-      data: { userName, name, password: hashedPassword, phone, role },
+      data: { 
+        userName, 
+        name, 
+        password: hashedPassword, 
+        phone, 
+        role,
+        userNameGenerated 
+      },
       select: {
         id: true,
         userName: true,
@@ -36,6 +51,7 @@ export async function createUser(userName: string, name: string, password: strin
         role: true,
         twoFactorEnabled: true,
         twoFactorSecret: true,
+        userNameGenerated: true,
         createdAt: true,
       },
     });
@@ -61,11 +77,13 @@ export async function verifyUser(userName: string, password: string): Promise<Us
         password: true,
         twoFactorEnabled: true,
         twoFactorSecret: true,
+        userNameGenerated: true,
         createdAt: true,
       },
     });
 
     if (!user) return null;
+    if (!user.password) return null;
 
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) return null;
@@ -91,6 +109,7 @@ export async function getUserById(id: number): Promise<User | null> {
         role: true,
         twoFactorEnabled: true,
         twoFactorSecret: true,
+        userNameGenerated: true,
         createdAt: true,
       },
     });
@@ -114,6 +133,7 @@ export async function getUserByUserName(userName: string): Promise<User | null> 
         role: true,
         twoFactorEnabled: true,
         twoFactorSecret: true,
+        userNameGenerated: true,
         createdAt: true,
       },
     });

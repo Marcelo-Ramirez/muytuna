@@ -3,10 +3,11 @@ import { JWT as NextAuthJWT } from "next-auth/jwt";
 
 interface CustomUser {
   id: string; 
-  userName: string; // 💡 CORREGIDO A 'userName' para consistencia con DB y el error TS2551
+  userName: string; // CORREGIDO A 'userName' para consistencia con DB y el error TS2551
   role: string;
   twoFactorEnabled: boolean;
   requires2FA: boolean; 
+  userNameGenerated: boolean;
 }
 
 declare module "next-auth" {

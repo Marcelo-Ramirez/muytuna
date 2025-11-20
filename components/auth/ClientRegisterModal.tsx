@@ -2,6 +2,8 @@
 'use client'
 
 import React, { useState } from 'react' // Import React for FormEvent
+import { useSearchParams } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,6 +31,9 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
     const [isLoading, setIsLoading] = useState(false)
     const [serverError, setServerError] = useState('')
     const [successMessage, setSuccessMessage] = useState('')
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+    const searchParams = useSearchParams()
+    const oauthAccountNotLinked = searchParams?.get('error') === 'OAuthAccountNotLinked'
     // ✅ Estado para errores de validación del frontend
     const [errors, setErrors] = useState<FormErrors>({})
 
@@ -107,6 +112,19 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
         }
     }
 
+    const handleGoogleAuth = async () => {
+        setServerError('')
+        setIsGoogleLoading(true)
+        try {
+            await signIn('google', {
+                callbackUrl: '/',
+            })
+        } catch {
+            setServerError('No se pudo conectar con Google en este momento.')
+            setIsGoogleLoading(false)
+        }
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
@@ -122,6 +140,12 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
                     <DialogTitle className="text-lg font-semibold text-primary">Crear Cuenta</DialogTitle>
                 </DialogHeader>
                 
+                {oauthAccountNotLinked && (
+                    <p className="text-sm font-medium text-amber-900 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2">
+                        Este correo ya tiene una cuenta con otro método. Ingresa con tu usuario/contraseña.
+                    </p>
+                )}
+
                 {serverError && <p className="text-destructive text-sm font-medium px-3 py-2 bg-destructive/10 dark:bg-destructive/15 border border-destructive/30 rounded-xl">{serverError}</p>}
                 {successMessage && <p className="text-foreground dark:text-[#f8f4e6] text-sm font-medium px-3 py-2 bg-muted/70 dark:bg-[#3c3323] border border-primary/30 rounded-xl">{successMessage}</p>}
 
@@ -153,6 +177,25 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Crear Cuenta'}
                     </Button>
                 </form>
+
+                <div className="pt-3 w-full">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isGoogleLoading}
+                        className="h-10 w-full rounded-full border-dashed text-xs font-semibold text-muted-foreground hover:text-foreground"
+                        onClick={handleGoogleAuth}
+                    >
+                        {isGoogleLoading ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Conectando con Google...
+                            </span>
+                        ) : (
+                            'Registrarte o iniciar sesión con Google'
+                        )}
+                    </Button>
+                </div>
 
                 <div className='flex flex-col items-center gap-1.5 pt-3 text-xs text-muted-foreground dark:text-[#d9ceb0]'>
                     <span>¿Ya tienes cuenta?</span>
