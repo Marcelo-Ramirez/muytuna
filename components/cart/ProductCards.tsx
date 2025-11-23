@@ -36,7 +36,7 @@ export const ProductCard = (props: ProductCardProps) => {
         <Card className="flex flex-col gap-2 relative bg-card dark:bg-zinc-800/50 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden border-none h-[16rem]">
             
             {/* Imagen */}
-            <div className="w-full bg-center bg-no-repeat aspect-square bg-cover rounded-lg bg-gray-100 dark:bg-gray-700 relative overflow-hidden">
+            <div className="w-full bg-center bg-no-repeat aspect-square bg-cover rounded-lg relative overflow-hidden">
                 {imageUrl ? (
                     <Image 
                         src={imageUrl} 

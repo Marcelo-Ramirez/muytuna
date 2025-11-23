@@ -308,7 +308,7 @@ export default function CatalogPage() {
                                     />
                                 </div>
                             </label>
-                            <div className="flex gap-3 overflow-x-auto whitespace-nowrap justify-start lg:flex-1 lg:overflow-visible lg:whitespace-nowrap lg:justify-start">
+                            <div className="flex gap-3 overflow-x-auto whitespace-nowrap justify-start lg:flex-1 lg:overflow-visible lg:whitespace-nowrap lg:justify-start no-scrollbar">
                                 {filterOptions.map((filterOption) => (
                                     <button 
                                         key={filterOption.value}
@@ -341,7 +341,7 @@ export default function CatalogPage() {
                         <button 
                             onClick={handleLoadMore}
                             disabled={loading} 
-                            className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-5 flex-1 bg-primary dark:bg-zinc-800 text-black dark:text-zinc-200 text-base font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors relative border-2 border-zinc-600 dark:border-zinc-600"
+                            className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 px-5 flex-1 bg-primary dark:bg-zinc-800 text-black dark:text-zinc-200 text-base font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors relative dark:border-zinc-600 border border-gray-200 shadow-md"
                         >
                             {loading && page > 1 ? (
                                 <Loader2 className="h-5 w-5 animate-spin mr-2" />

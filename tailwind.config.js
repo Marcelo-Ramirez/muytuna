@@ -60,6 +60,17 @@ module.exports = {
     tailwindcssAnimate,
     plugin(function({ addVariant }) {
       addVariant('light-mode', ':not(.is-dark) &');
+    }),
+    plugin(function({ addUtilities }) {
+      addUtilities({
+        '.no-scrollbar::-webkit-scrollbar': {
+          display: 'none',
+        },
+        '.no-scrollbar': {
+          '-ms-overflow-style': 'none',
+          'scrollbar-width': 'none',
+        },
+      }, ['responsive', 'hover'])
     })
   ],
 };
