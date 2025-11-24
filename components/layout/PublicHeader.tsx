@@ -6,13 +6,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Menu, User, Package, ListOrdered, LogOut, Moon, Sun, X, ShoppingBag, Info, Phone } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { ClientLoginModal } from '@/components/auth/ClientLoginModal';
 import { ClientRegisterModal } from '@/components/auth/ClientRegisterModal';
 import { Button } from "@/components/ui/button";
 
-// ... (Tus constantes NavLinks, MobileNavItems, etc. se mantienen igual) ...
 const NavLinks = [
   { href: '/catalog', label: 'Tienda', icon: Package },
   { href: '/orders', label: 'Mis Pedidos', icon: ListOrdered },
@@ -35,6 +34,19 @@ const mobilePageTitles: Record<string, string> = {
   '/contact': 'Contáctanos',
 };
 
+// Función utilitaria para restaurar scroll
+const forceUnlockScroll = () => {
+  document.body.classList.remove('overflow-hidden');
+  document.documentElement.classList.remove('overflow-hidden');
+  document.body.style.overflow = '';
+  document.documentElement.style.overflow = '';
+  document.body.style.top = '';
+  // Extra: por si hay estilos inline persistentes
+  document.body.style.removeProperty('overflow');
+  document.documentElement.style.removeProperty('overflow');
+  document.body.style.removeProperty('top');
+};
+
 type SessionStatus = ReturnType<typeof useSession>['status'];
 type SessionData = ReturnType<typeof useSession>['data'];
 
@@ -48,7 +60,6 @@ interface DesktopNavLinksProps {
   onLogin: () => void;
 }
 
-// ... (El componente DesktopNavLinks se mantiene igual) ...
 const DesktopNavLinks = ({ links, status, session, isActive, commonClasses, activeClasses, onLogin }: DesktopNavLinksProps) => (
   <>
     {links.map((link) => {
@@ -81,7 +92,6 @@ const DesktopNavLinks = ({ links, status, session, isActive, commonClasses, acti
   </>
 );
 
-// ... (MobileNavList se mantiene igual) ...
 interface MobileNavListProps {
   isActive: (href: string) => boolean;
   onNavigate: (href: string) => void;
@@ -110,12 +120,12 @@ const MobileNavList = ({ isActive, onNavigate, isAuthenticated, activeClasses }:
   </nav>
 );
 
-// ... (MobileThemeToggle se mantiene igual) ...
 interface MobileThemeToggleProps {
   isDark: boolean;
   toggleTheme: () => void;
   className?: string;
 }
+
 const MobileThemeToggle = ({ isDark, toggleTheme, className = '' }: MobileThemeToggleProps) => (
   <button onClick={toggleTheme} className={`flex items-center justify-between w-full p-2 rounded-md transition-colors text-foreground hover:bg-primary ${className} pt-6`}>
     <div className="flex items-center gap-3">
@@ -138,6 +148,10 @@ export function PublicHeader() {
   const [isSidebarMounted, setIsSidebarMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cleanupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollPositionRef = useRef<number>(0);
+
   const { data: session, status } = useSession();
   const { resolvedTheme, setTheme } = useTheme();
   const pathname = usePathname();
@@ -149,35 +163,103 @@ export function PublicHeader() {
   const mobilePageTitle = mobilePageTitles[pathname] ?? null;
 
   // ============================================================
-  // 1. Lógica de Animación Corregida (Sincronización de tiempo)
+  // 1. EFECTO DE ANIMACIÓN 
   // ============================================================
-// Lógica de Animación
   useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     if (isSidebarOpen) {
       setIsSidebarMounted(true);
-      // Aumentamos a 50ms para asegurar que el navegador "vea" el estado cerrado antes de animar
-      timeout = setTimeout(() => {
-        setIsVisible(true);
-      }, 50); 
-      document.body.classList.add('overflow-hidden');
+      timeoutRef.current = setTimeout(() => setIsVisible(true), 50);
     } else {
-      setIsVisible(false); // Inicia animación de salida
-      
-      // Este tiempo (700ms) debe coincidir EXACTAMENTE con duration-700 del CSS
-      timeout = setTimeout(() => {
+      setIsVisible(false); 
+      timeoutRef.current = setTimeout(() => {
         setIsSidebarMounted(false);
       }, 500); 
-      
-      document.body.classList.remove('overflow-hidden');
     }
 
     return () => {
-      if (timeout) clearTimeout(timeout);
-      document.body.classList.remove('overflow-hidden');
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [isSidebarOpen]);
+
+  // ============================================================
+  // 2. EFECTO DE BLOQUEO (Aplica/remueve overflow-hidden)
+  // ============================================================
+  useEffect(() => {
+    if (isSidebarMounted) {
+      // Guardar la posición actual del scroll
+      scrollPositionRef.current = window.scrollY;
+      
+      // Aplicar bloqueo
+      document.body.classList.add('overflow-hidden');
+      document.documentElement.classList.add('overflow-hidden');
+      
+      // En móviles, ajustar el top para mantener la posición visual
+      if (window.innerWidth < 768) {
+        document.body.style.top = `-${scrollPositionRef.current}px`;
+      }
+    } else {
+      // Remover bloqueo
+      document.body.classList.remove('overflow-hidden');
+      document.documentElement.classList.remove('overflow-hidden');
+      
+      // Restaurar posición del scroll
+      if (window.innerWidth < 768) {
+        document.body.style.top = '';
+        window.scrollTo(0, scrollPositionRef.current);
+      }
+    }
+    
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+      document.documentElement.classList.remove('overflow-hidden');
+      document.body.style.top = '';
+    };
+  }, [isSidebarMounted]);
+
+  // ============================================================
+  // 3. FAILSAFE DE NAVEGACIÓN (Ejecuta en cada cambio de ruta)
+  // ============================================================
+  useEffect(() => {
+    // Cancelar animaciones pendientes
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
+
+    // Resetear estados del sidebar
+    setIsSidebarOpen(false);
+    setIsVisible(false);
+    setIsSidebarMounted(false);
+    
+    // LIMPIEZA INMEDIATA
+    forceUnlockScroll();
+    
+    // LIMPIEZA ASÍNCRONA (por si React tarda en actualizar)
+    cleanupTimerRef.current = setTimeout(() => {
+      forceUnlockScroll();
+    }, 0);
+
+    // LIMPIEZA ADICIONAL (después de transiciones)
+    const finalCleanup = setTimeout(() => {
+      forceUnlockScroll();
+    }, 100);
+
+    return () => {
+      if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
+      clearTimeout(finalCleanup);
+      // Limpieza final al desmontar
+      forceUnlockScroll();
+    };
+  }, [pathname]);
+
+  // ============================================================
+  // 4. CLEANUP GLOBAL AL DESMONTAR EL COMPONENTE
+  // ============================================================
+  useEffect(() => {
+    return () => {
+      forceUnlockScroll();
+    };
+  }, []);
 
   const overlayColor = isDark ? 'bg-black/70' : 'bg-white/70';
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
@@ -210,7 +292,6 @@ export function PublicHeader() {
 
   return (
     <>
-      {/* Header principal */}
       <header className={`bg-white dark:bg-background backdrop-blur-sm shadow-sm sticky top-0 z-40`}>
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-20 gap-4">
@@ -251,23 +332,16 @@ export function PublicHeader() {
         </div>
       </header>
 
-      {/* Botón flotante para menú móvil */}
       {!isSidebarOpen && (
         <div className="md:hidden fixed top-4 left-4 z-[55] p-1">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsSidebarOpen(true)}
-            className={`
-        backdrop-blur-sm shadow-md border-border 
-        ${isDark ? 'bg-background/90' : 'bg-background/80'} 
-        hover:bg-background
-        opacity-0
-        animate-fade-in
-        transition-opacity duration-500
-      `}
+            className={`backdrop-blur-sm shadow-md border-border ${isDark ? 'bg-background/90' : 'bg-background/80'} hover:bg-background opacity-0 animate-fade-in transition-opacity duration-500`}
             aria-label="Abrir menú"
-          >            <Menu className="h-6 w-6" />
+          >
+            <Menu className="h-6 w-6" />
           </Button>
         </div>
       )}
@@ -285,12 +359,8 @@ export function PublicHeader() {
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* 2. Sidebar Lateral (Móvil) CORREGIDO                         */}
-      {/* ============================================================ */}
       {isSidebarMounted && (
         <>
-          {/* Overlay: Corregido a duration-700 para que coincida con el menú */}
           <button
             type="button"
             className={`fixed inset-0 z-30 md:hidden transition-opacity duration-500 ease-in-out ${overlayColor} ${isVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
@@ -298,26 +368,23 @@ export function PublicHeader() {
             aria-label="Cerrar menú"
           />
           
-          {/* Sidebar: Usamos duration-700 para suavidad consistente */}
           <div
-            className={`fixed left-0 top-0 h-full w-64 bg-white dark:bg-background z-50 md:hidden flex flex-col 
-              rounded-r-3xl 
-              shadow-[10px_0_30px_-5px_rgba(0,0,0,0.2)] 
-              transition-transform duration-500 ease-in-out 
-              ${isVisible ? 'translate-x-0' : '-translate-x-full'}`}
+            className={`fixed left-0 top-0 h-full w-64 bg-white dark:bg-background z-50 md:hidden flex flex-col rounded-r-3xl shadow-[10px_0_30px_-5px_rgba(0,0,0,0.2)] transition-transform duration-500 ease-in-out ${isVisible ? 'translate-x-0' : '-translate-x-full'}`}
           >
-            {/* ... (El contenido interno de tu sidebar sigue igual) ... */}
-            
-            {/* Header del Sidebar */}
             <div className="flex items-center justify-between p-4">
-            {/* ... resto de tu código interno ... */}
               <div>
                 {status === 'authenticated' ? (
-                   /* ... */
-                   <span className="text-lg font-semibold">{session?.user?.name || 'Usuario'}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white font-bold text-sm">
+                      {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <span className="text-lg font-semibold">{session?.user?.name || 'Usuario'}</span>
+                  </div>
                 ) : (
-                   /* ... */
-                   <span className="text-lg font-semibold">Iniciar Sesión</span>
+                  <button onClick={() => { setIsLoginOpen(true); setIsSidebarOpen(false); }} className="flex items-center gap-2 cursor-pointer">
+                    <User className="h-6 w-6" />
+                    <span className="text-lg font-semibold">Iniciar Sesión</span>
+                  </button>
                 )}
               </div>
               <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)} aria-label="Cerrar menú">
