@@ -3,7 +3,7 @@
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 import {
-  Home, Users, Package, BarChart3, LogOut, Menu, X, User, ShoppingCart, type LucideIcon,TrendingUp, Wrench
+  Home, Users, Package, BarChart3, LogOut, Menu, X, User, ShoppingCart, Barcode, type LucideIcon, TrendingUp, Wrench
 } from 'lucide-react';
 import { cn } from "@/lib/utils"; // Utilidad para combinar clases condicionalmente
 
@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Bar } from 'recharts';
 
 // --- Tipos ---
 type UserRole = 'admin' | 'stockroom' | 'sales' | string;
@@ -47,6 +48,7 @@ const iconMap = {
   FiUser: User,
   FiShoppingCart: ShoppingCart,
   FiWrench: Wrench,
+  FiBarcode: Barcode,
 };
 
 // --- Componente ---
@@ -78,6 +80,7 @@ export default function SystemSidebar({ role, isCollapsed = false, onToggle }: S
       sales: [
         { label: 'Productos', href: `/sys/${role}/products`, icon: iconMap.FiPackage },
         { label: 'Pedidos', href: `/sys/${role}/orders`, icon: iconMap.FiShoppingCart },
+        { label: 'Escanear codigo de barras', href: `/sys/${role}/scan`, icon: iconMap.FiBarcode },
       ]
     };
 
