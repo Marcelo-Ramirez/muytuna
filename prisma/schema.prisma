@@ -138,12 +138,21 @@ model Product {
   imageUrl        String   @map("imageUrl")
   pricePerUnit    Float    @map("pricePerUnit")
   currentQuantity Float    @map("currentQuantity")
-  createdAt       DateTime @default(now()) @map("createdAt")
-  updatedAt       DateTime @updatedAt @map("updatedAt")
+  
+  // Campos de código de barras
+  sku             String?  @unique
+  barcode         String?  @unique
+  barcodeFormat   String?  @default("CODE128")
+  lastSequenceNumber Int     @default(0) @map("last_sequence_number")
+  
+  createdAt       DateTime @default(now()) @map("createdAt")
+  updatedAt       DateTime @updatedAt @map("updatedAt")
+  
   // Relaciones
   orderClients    OrderClient[]
   saleProducts    SaleProduct[]
   productMovements ProductMovement[]
+  batches         ProductBatch[]
 
   @@map("Products")
 }
@@ -155,7 +164,7 @@ model OrderClient {
   quantity    Float
   status      String
   createdAt   DateTime @default(now()) @map("createdAt")
-  saleOrder   SaleOrder? // <-- ¡CORREGIDO! No se necesita el campo 'fields' aquí
+  saleOrder   SaleOrder?
 
   // Relaciones
   product Product @relation(fields: [productId], references: [id])
@@ -166,7 +175,7 @@ model OrderClient {
 model SaleOrder {
   id             Int      @id @default(autoincrement())
   userId         Int      @map("user_id")
-  orderClientId  Int      @unique @map("order_client_id") // <-- Agregamos @unique aquí
+  orderClientId  Int      @unique @map("order_client_id")
   totalCostOrder Float    @map("totalCostOrder")
   createdAt      DateTime @default(now()) @map("createdAt")
   saleProducts   SaleProduct[]
@@ -200,10 +209,36 @@ model ProductMovement {
   productId     Int      @map("product_id")
   movementType  String   @map("movement_type")
   quantity      Float
+  batchId       Int?
   createdAt     DateTime @default(now()) @map("createdAt")
 
   // Relaciones
   user      User     @relation(fields: [userId], references: [id])
   product   Product  @relation(fields: [productId], references: [id])
+  batch     ProductBatch? @relation(fields: [batchId], references: [id])
   @@map("Product_movements")
+}
+
+model ProductBatch {
+  id              Int      @id @default(autoincrement())
+  productId       Int      @map("product_id")
+  batchNumber     String   @unique @map("batch_number")
+  
+  quantity        Float
+  remaining       Float
+  
+  productionDate  DateTime @default(now()) @map("production_date")
+  expiryDate      DateTime? @map("expiry_date")
+  notes           String?
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  // Relación
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productMovements ProductMovement[]
+  
+  @@index([productId, expiryDate])
+  @@index([productId, remaining])
+  @@map("Product_batches")
 }

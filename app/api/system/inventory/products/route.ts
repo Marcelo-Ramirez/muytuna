@@ -28,8 +28,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const { name, flavor, type, pricePerUnit, imageUrl, currentQuantity } =
-      await req.json();
+    const { 
+      name, 
+      flavor, 
+      type, 
+      pricePerUnit, 
+      imageUrl, 
+      currentQuantity,
+      sku,
+      barcode,
+      barcodeFormat 
+    } = await req.json();
 
     const newProduct = await prisma.product.create({
       data: {
@@ -39,6 +48,9 @@ export async function POST(req: Request) {
         pricePerUnit,
         imageUrl,
         currentQuantity,
+        sku: sku || '',
+        barcode: barcode || '',
+        barcodeFormat: barcodeFormat || 'EAN13',
       },
     });
 
