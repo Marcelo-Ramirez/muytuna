@@ -2,31 +2,19 @@
 
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { ArrowLeft, Plus, Loader2 } from "lucide-react"; // Iconos
-import { toast } from 'sonner'; // Notificaciones
+import { ArrowLeft, Package, Loader2 } from "lucide-react"; // Iconos
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
     Card,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-// Mantenemos Select en los imports por si acaso
+
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
-// Definición de interfaces
 interface ProductDetails {
     id: number;
     name: string;
@@ -58,18 +46,6 @@ function ProductHistoryInner() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const [showRegisterModal, setShowRegisterModal] = useState(false);
-    
-    // ⭐ CAMBIO 1: Inicializar con movementType='entrada' y reason predefinido
-    const [registerData, setRegisterData] = useState({
-        movementType: 'entrada',
-        reason: 'ajuste_inventario', // Razón por defecto para cumplir con la API
-        quantity: ''
-    });
-    
-    const [registerLoading, setRegisterLoading] = useState(false);
-    const [registerError, setRegisterError] = useState<string | null>(null);
-
     // Determina el rol basado en la URL (Mantenido)
     const isStockroomRole = typeof window !== 'undefined' &&
         globalThis.location.pathname.includes('/stockroom/');
@@ -100,59 +76,8 @@ function ProductHistoryInner() {
         fetchHistory();
     }, [fetchHistory]);
 
-    // --- Lógica de Modal (Modificada) ---
-    const handleOpenRegister = () => {
-        // ⭐ CAMBIO 2: Reiniciar solo con los campos visibles y los predefinidos
-        setRegisterData({ 
-            movementType: 'entrada', 
-            reason: 'ajuste_inventario', 
-            quantity: '' 
-        });
-        setRegisterError(null);
-        setShowRegisterModal(true);
-    };
-
-    const handleRegisterCancel = () => {
-        setShowRegisterModal(false);
-        setRegisterError(null);
-    };
-
-    const handleRegisterAccept = async () => {
-        // ⭐ CAMBIO 3: Solo validar la cantidad
-        if (!registerData.quantity || Number(registerData.quantity) <= 0) {
-            setRegisterError('La cantidad debe ser un número positivo.');
-            return;
-        }
-
-        setRegisterLoading(true);
-        setRegisterError(null);
-
-        try {
-            // Usamos la API corregida
-            const res = await fetch(`/api/system/inventory/products/${productId}/history`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    productId,
-                    movementType: registerData.movementType, // Usará 'entrada'
-                    reason: registerData.reason,             // Usará 'ajuste_inventario'
-                    quantity: Number(registerData.quantity)
-                })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Error al registrar movimiento');
-
-            setShowRegisterModal(false);
-            toast.success('¡Entrada de inventario registrada exitosamente!');
-            setRegisterData({ movementType: 'entrada', reason: 'ajuste_inventario', quantity: '' }); // Reiniciar
-            await fetchHistory(); // Recarga los datos
-
-        } catch (err) {
-            setRegisterError(err instanceof Error ? err.message : 'Error desconocido');
-        } finally {
-            setRegisterLoading(false);
-        }
+    const handleGoToBatches = () => {
+        router.push(`/sys/stockroom/products/${productId}/batches`);
     };
 
     // --- Función de Renderizado (Mantenida) ---
@@ -286,9 +211,9 @@ function ProductHistoryInner() {
                 {/* Header del Historial */}
                 <div className="flex justify-between items-center flex-wrap gap-4">
                     <h2 className="text-xl font-semibold text-foreground">Historial de Movimientos</h2>
-                    <Button onClick={handleOpenRegister} size="sm">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Registrar **Entrada**
+                    <Button onClick={handleGoToBatches} size="sm" variant="outline">
+                        <Package className="mr-2 h-4 w-4" />
+                        Gestionar lotes
                     </Button>
                 </div>
 
@@ -296,52 +221,6 @@ function ProductHistoryInner() {
                 {renderMovementList()}
             </div>
 
-            {/* --- MODAL DE REGISTRO (Dialog) --- */}
-            <Dialog open={showRegisterModal} onOpenChange={setShowRegisterModal}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Registrar Entrada de Inventario</DialogTitle>
-                        <DialogDescription>
-                            Producto: <strong>{product?.name || "N/A"}</strong>
-                            <span className="block text-xs mt-1 text-muted-foreground/70">
-                                Tipo de movimiento: **Entrada** (ajuste)
-                            </span>
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="grid gap-4 py-4">
-
-                        {/* Cantidad - ÚNICO CAMPO VISIBLE */}
-                        <div className="space-y-2">
-                            <Label htmlFor="quantity">Cantidad a Ingresar</Label>
-                            <Input
-                                id="quantity"
-                                type="number"
-                                min="1"
-                                placeholder="Ingrese la cantidad de entrada"
-                                value={registerData.quantity}
-                                onChange={(e) => setRegisterData(d => ({ ...d, quantity: e.target.value }))}
-                            />
-                        </div>
-                    </div>
-
-                    {registerError && (
-                        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md">
-                            <p className="text-destructive text-sm font-medium">{registerError}</p>
-                        </div>
-                    )}
-
-                    <DialogFooter className="mt-4">
-                        <Button variant="outline" onClick={handleRegisterCancel} disabled={registerLoading}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleRegisterAccept} disabled={registerLoading}>
-                            {registerLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Registrar Entrada
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

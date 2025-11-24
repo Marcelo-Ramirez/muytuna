@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { generateSKU, generateEAN13Barcode, generateBatchNumber } from '../lib/barcode/generator';
 
 const prisma = new PrismaClient();
 
@@ -30,6 +31,7 @@ async function main() {
   await prisma.orderClient.deleteMany();
   await prisma.inventoryMovement.deleteMany();
   await prisma.ingredientEOQModel.deleteMany();
+  await prisma.productBatch.deleteMany(); // Added to clean batches
   await prisma.product.deleteMany();
   await prisma.ingredient.deleteMany();
   await prisma.user.deleteMany();
@@ -117,7 +119,7 @@ async function main() {
   console.log(`✅ 50 movimientos de inventario creados`);
 
   // 5. Crear Productos (solo lista solicitada)
-  console.log('� Creando los productos solicitados...');
+  console.log(' Creando los productos solicitados...');
   const products = [];
 
   // Lista solicitada: 8 gomitas y 8 pulpas
@@ -143,11 +145,14 @@ async function main() {
     'pulpa de mandarina',
   ];
 
-  // Predecible: gimita prices integer 1-3 Bs; pulpa prices 5-10 Bs (enteros)
+  // Predecible: gimita prices integer 1-3 Bs; pulpa prices 5-10 Bs  // Crear gomitas con códigos de barras
   for (const name of gomitas) {
     const key = name.split(' ').slice(-1)[0];
-    const imageFile = `g-${key}.png`;
-    const imageUrl = `/images/products/gomita/${imageFile}`;
+    // Capitalizar primera letra para match con archivos reales: gomitaTuna.png
+    const capitalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
+    const imageFile = `gomita${capitalizedKey}.png`;
+    const imageUrl = `/images/products/${imageFile}`;
+    const qty = random(10, 100);
 
     const product = await prisma.product.create({
       data: {
@@ -156,16 +161,46 @@ async function main() {
         type: 'Gomita',
         imageUrl,
         pricePerUnit: random(1, 3),
-        currentQuantity: random(10, 100),
+        currentQuantity: qty,
+        sku: '', // Temporal
+        barcode: '', // Temporal
+        barcodeFormat: 'EAN13',
       },
     });
-    products.push(product);
+    
+    // Generar códigos basados en ID
+    const sku = generateSKU('Gomita', key, product.id);
+    const barcode = generateEAN13Barcode(product.id);
+    
+    // Actualizar con códigos
+    const updated = await prisma.product.update({
+      where: { id: product.id },
+      data: { sku, barcode },
+    });
+    
+    // Crear lote inicial
+    await prisma.productBatch.create({
+      data: {
+        productId: product.id,
+        batchNumber: generateBatchNumber(new Date()),
+        quantity: qty,
+        remaining: qty,
+        productionDate: new Date(),
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+    
+    products.push({ ...updated, sku, barcode });
   }
 
+  // Crear pulpas con códigos de barras
   for (const name of pulpas) {
     const key = name.split(' ').slice(-1)[0];
-    const imageFile = `p-${key}.png`;
-    const imageUrl = `/images/products/pulpa/${imageFile}`;
+    // Capitalizar primera letra para match con archivos reales: pulpaTuna.png
+    const capitalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
+    const imageFile = `pulpa${capitalizedKey}.png`;
+    const imageUrl = `/images/products/${imageFile}`;
+    const qty = random(5, 50);
 
     const product = await prisma.product.create({
       data: {
@@ -174,15 +209,39 @@ async function main() {
         type: 'Pulpa',
         imageUrl,
         pricePerUnit: random(5, 10),
-        currentQuantity: random(5, 50),
+        currentQuantity: qty,
+        sku: '', // Temporal
+        barcode: '', // Temporal
+        barcodeFormat: 'EAN13',
       },
     });
-    products.push(product);
+    
+    // Generar códigos basados en ID
+    const sku = generateSKU('Pulpa', key, product.id);
+    const barcode = generateEAN13Barcode(product.id);
+    
+    // Actualizar con códigos
+    const updated = await prisma.product.update({
+      where: { id: product.id },
+      data: { sku, barcode },
+    });
+    
+    // Crear lote inicial
+    await prisma.productBatch.create({
+      data: {
+        productId: product.id,
+        batchNumber: generateBatchNumber(new Date()),
+        quantity: qty,
+        remaining: qty,
+        productionDate: new Date(),
+        expiryDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
+      },
+    });
+    
+    products.push({ ...updated, sku, barcode });
   }
 
-  console.log(`✅ ${products.length} productos creados`);
-
-  // 6. Crear Órdenes de Clientes (40 órdenes)
+  console.log(`✅ ${products.length} productos creados con códigos de barras y lotes iniciales`);
   console.log('📋 Creando órdenes de clientes...');
   const orderClients = [];
   for (let i = 0; i < 40; i++) {
