@@ -19,6 +19,7 @@ async function main() {
   await prisma.inventoryMovement.deleteMany();
   await prisma.ingredientEOQModel.deleteMany();
   await prisma.productBatch.deleteMany();
+  await prisma.productBatch.deleteMany();
   await prisma.product.deleteMany();
   await prisma.ingredient.deleteMany();
   await prisma.user.deleteMany();
