@@ -28,18 +28,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-// Definición de interfaces (mantenidas del código original)
+// Definición de interfaces
 interface IngredientDetails {
   name: string;
   provider: string;
-  reorderPoint: number;
+  currentQuantity: number;
   pricePerUnit: number;
-  // Agrega aquí cualquier otra propiedad que venga en data.ingredient
+  ingredientEOQ?: {
+    reorderPoint: number;
+  } | null;
 }
 
 interface Movement {
   id: number;
-  movementType: 'entrada' | 'salida' | 'ajuste'; // Tipado más estricto
+  movementType: 'entrada' | 'salida' | 'ajuste';
   reason: string;
   quantity: number;
   createdAt: string;
@@ -52,7 +54,6 @@ export default function IngredientHistoryPage() {
   const router = useRouter();
   const params = useParams();
   
-  // Mantenemos la lógica de [name] como pediste
   const name = decodeURIComponent(params.name as string); 
 
   const [movements, setMovements] = useState<Movement[]>([]);
@@ -60,7 +61,6 @@ export default function IngredientHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Estado del Modal (estilo Shadcn)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerData, setRegisterData] = useState({
@@ -69,11 +69,9 @@ export default function IngredientHistoryPage() {
     quantity: ''
   });
 
-  // Función estable para la obtención de datos
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Usamos la API que busca por nombre
       const res = await fetch(`/api/system/inventory/ingredients/history?name=${encodeURIComponent(name)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al obtener historial");
@@ -84,13 +82,12 @@ export default function IngredientHistoryPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [name]); // La dependencia sigue siendo 'name'
+  }, [name]);
 
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Lógica del Modal (adaptada a Shadcn y Sonner/Toast)
   const handleOpenRegister = () => {
     setRegisterData({ movementType: '', reason: '', quantity: '' });
     setIsModalOpen(true);
@@ -112,7 +109,7 @@ export default function IngredientHistoryPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name, // Enviamos el nombre a la API
+          name,
           movementType: registerData.movementType,
           reason: registerData.reason,
           quantity: Number(registerData.quantity)
@@ -124,7 +121,7 @@ export default function IngredientHistoryPage() {
 
       toast.success('Movimiento registrado', { description: `${registerData.movementType} de ${registerData.quantity} registrado.` });
       setIsModalOpen(false);
-      await fetchHistory(); // Recarga los datos
+      await fetchHistory();
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
@@ -134,7 +131,6 @@ export default function IngredientHistoryPage() {
     }
   };
 
-  // --- VISTA DE CARGA Y ERROR ---
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-[50vh]">
@@ -155,17 +151,14 @@ export default function IngredientHistoryPage() {
     );
   }
 
-  // --- VISTA PRINCIPAL (JSX) ---
   return (
     <div className="p-4 md:p-6 space-y-6">
       
-      {/* Botón Volver */}
       <Button variant="outline" onClick={() => router.back()}>
         <ArrowLeft className="mr-2 h-4 w-4" />
         Volver a Ingredientes
       </Button>
 
-      {/* Detalles del Ingrediente */}
       <Card className="p-6 space-y-3">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Ingrediente
@@ -175,7 +168,10 @@ export default function IngredientHistoryPage() {
           Proveedor: {ingredient?.provider || "-"}
         </p>
         <p className="text-sm text-muted-foreground">
-          Punto de Reorden: {ingredient?.reorderPoint ?? "No definido"}
+          Cantidad Total: {ingredient?.currentQuantity ?? "No definido"} unidades
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Punto de Reorden: {ingredient?.ingredientEOQ?.reorderPoint ?? "No definido"}
         </p>
         <p className="text-sm text-muted-foreground">
           Precio Unitario: Bs {ingredient?.pricePerUnit?.toFixed(2) ?? "-"}
@@ -184,7 +180,6 @@ export default function IngredientHistoryPage() {
 
       <Separator />
 
-      {/* Header del Historial */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold tracking-tight">
           Historial de Movimientos
@@ -194,7 +189,6 @@ export default function IngredientHistoryPage() {
         </Button>
       </div>
 
-      {/* Lista de Movimientos */}
       <div className="space-y-3">
         {movements.length > 0 ? (
           movements.map((m) => (
@@ -222,18 +216,16 @@ export default function IngredientHistoryPage() {
         )}
       </div>
 
-      {/* Modal para Registrar Movimiento */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>Registrar Nuevo Movimiento</DialogTitle>
             <DialogDescription>
-              Añade una nueva entrada o salida para el ingrediente &quot&{name}&quot&.
+              Añade una nueva entrada o salida para el ingrediente &quot;{name}&quot;.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             
-            {/* Tipo de Movimiento */}
             <div className="space-y-2">
               <Label htmlFor="movementType">Tipo de Movimiento</Label>
               <Select 
@@ -251,7 +243,6 @@ export default function IngredientHistoryPage() {
               </Select>
             </div>
 
-            {/* Razón */}
             <div className="space-y-2">
               <Label htmlFor="reason">Razón</Label>
               <Select
@@ -270,7 +261,6 @@ export default function IngredientHistoryPage() {
               </Select>
             </div>
 
-            {/* Cantidad */}
             <div className="space-y-2">
               <Label htmlFor="quantity">Cantidad</Label>
               <Input
