@@ -5,8 +5,9 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
 // GET: Obtener historial de movimientos
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const productIdParam = params.id;
+export async function GET(req: Request, context: { params: any }) {
+  const params = context.params;
+  const productIdParam = (await params).id;
   console.log(`LOG: Solicitud GET recibida para historial de producto ID: ${productIdParam}`);
 
   if (!productIdParam) {
