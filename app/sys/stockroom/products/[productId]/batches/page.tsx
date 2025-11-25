@@ -11,11 +11,12 @@ import { AlertCircle, Package, Plus, ArrowLeft, Calendar } from 'lucide-react';
 interface ProductBatch {
   id: number;
   batchNumber: string;
-  quantity: number;
+  initialQuantity: number;
   remaining: number;
   productionDate: string;
   expiryDate: string | null;
   notes: string | null;
+  status: string;
 }
 
 interface Product {
@@ -35,6 +36,7 @@ export default function ProductBatchesPage() {
   const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<ProductBatch | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -185,7 +187,10 @@ export default function ProductBatchesPage() {
               {product.currentQuantity} unidades
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              Distribuidas en {batches.length} lote(s)
+              Distribuidas en {batches.filter(b => b.remaining > 0).length} lote(s) activo(s)
+              {batches.filter(b => b.remaining === 0).length > 0 && 
+                ` • ${batches.filter(b => b.remaining === 0).length} agotado(s)`
+              }
             </p>
           </CardContent>
         </Card>
@@ -310,12 +315,38 @@ export default function ProductBatchesPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {batches.map((batch) => (
+            {/* Ordenar: primero activos (FIFO), luego agotados */}
+            {batches
+              .sort((a, b) => {
+                // Primero separar por stock
+                const aHasStock = a.remaining > 0 ? 1 : 0;
+                const bHasStock = b.remaining > 0 ? 1 : 0;
+                
+                if (aHasStock !== bHasStock) {
+                  return bHasStock - aHasStock; // Activos primero
+                }
+                
+                // Dentro del mismo grupo, ordenar por FIFO
+                return new Date(a.productionDate).getTime() - new Date(b.productionDate).getTime();
+              })
+              .map((batch, index) => {
+                // Determinar si es el lote activo (más antiguo con stock) o el próximo
+                const activeBatch = batches
+                  .filter(b => b.remaining > 0)
+                  .sort((a, b) => new Date(a.productionDate).getTime() - new Date(b.productionDate).getTime())[0];
+                const nextBatch = batches
+                  .filter(b => b.remaining > 0)
+                  .sort((a, b) => new Date(a.productionDate).getTime() - new Date(b.productionDate).getTime())[1];
+                
+                const isActive = activeBatch?.id === batch.id;
+                const isNext = nextBatch?.id === batch.id;
+                
+                return (
               <Card
                 key={batch.id}
                 className={`bg-card border-2 ${
                   isExpired(batch.expiryDate)
-                    ? 'border-destructive'
+                     ? 'border-destructive'
                     : isExpiringSoon(batch.expiryDate)
                     ? 'border-yellow-500 dark:border-yellow-600'
                     : 'border-border'
@@ -326,28 +357,56 @@ export default function ProductBatchesPage() {
                     <CardTitle className="text-sm font-mono text-foreground">
                       {batch.batchNumber}
                     </CardTitle>
-                    {isExpired(batch.expiryDate) && (
-                      <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
-                        Vencido
-                      </span>
-                    )}
-                    {!isExpired(batch.expiryDate) && isExpiringSoon(batch.expiryDate) && (
-                      <span className="text-xs bg-yellow-500 text-white dark:bg-yellow-600 px-2 py-1 rounded flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        Próximo
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {isActive && (
+                        <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">
+                          🎯 Activo
+                        </span>
+                      )}
+                      {isNext && !isActive && (
+                        <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded">
+                          ⏭️ Próximo
+                        </span>
+                      )}
+                      {isExpired(batch.expiryDate) && (
+                        <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
+                          Vencido
+                        </span>
+                      )}
+                      {!isExpired(batch.expiryDate) && isExpiringSoon(batch.expiryDate) && (
+                        <span className="text-xs bg-yellow-500 text-white dark:bg-yellow-600 px-2 py-1 rounded flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Por vencer
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div>
                     <p className="text-2xl font-bold text-primary">
                       {batch.remaining}
-                      <span className="text-sm text-muted-foreground font-normal ml-1">
-                        / {batch.quantity} un.
+                      <span className="text-sm text-muted-foreground font-normal ml-1 ">
+                        / {batch.initialQuantity} un.
                       </span>
                     </p>
-                    <p className="text-xs text-muted-foreground">Disponibles</p>
+                    <p className="text-xs text-muted-foreground">
+                      {batch.remaining === 0 ? '🚫 Agotado' : 'Disponibles'}
+                    </p>
+                    
+                    {/* Progress bar */}
+                    <div className="mt-2 w-full overflow-hidden">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all ${
+                            batch.remaining === 0 ? 'bg-gray-400' : 'bg-primary'
+                          }`}
+                          style={{ 
+                            width: `${Math.min(100, (batch.remaining / batch.initialQuantity) * 100)}%` 
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-1 text-sm">
@@ -381,7 +440,8 @@ export default function ProductBatchesPage() {
                   </Button>
                 </CardContent>
               </Card>
-            ))}
+            );
+          })}
           </div>
         )}
       </div>

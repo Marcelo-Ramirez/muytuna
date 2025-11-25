@@ -207,15 +207,19 @@ model ProductMovement {
   id            Int      @id @default(autoincrement())
   userId        Int      @map("user_id")
   productId     Int      @map("product_id")
-  movementType  String   @map("movement_type")
+  batchId       Int?     @map("batch_id")
+  movementType  String   @map("movement_type") // INGRESO, EGRESO, AJUSTE
   quantity      Float
-  batchId       Int?
+  notes         String?  // Notas adicionales
   createdAt     DateTime @default(now()) @map("createdAt")
 
   // Relaciones
   user      User     @relation(fields: [userId], references: [id])
   product   Product  @relation(fields: [productId], references: [id])
   batch     ProductBatch? @relation(fields: [batchId], references: [id])
+  
+  @@index([productId])
+  @@index([batchId])
   @@map("Product_movements")
 }
 
@@ -224,15 +228,14 @@ model ProductBatch {
   productId       Int      @map("product_id")
   batchNumber     String   @unique @map("batch_number")
   
-  quantity        Float
-  remaining       Float
+  initialQuantity Float    
+  remaining       Float    
+  status          String   @default("ACTIVE")
   
   productionDate  DateTime @default(now()) @map("production_date")
   expiryDate      DateTime? @map("expiry_date")
+  updatedAt       DateTime @updatedAt @map("updated_at") 
   notes           String?
-  
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
   
   // Relación
   product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)

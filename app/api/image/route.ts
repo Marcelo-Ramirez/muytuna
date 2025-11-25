@@ -29,7 +29,7 @@ export const POST = async (req: Request) => {
       }, { status: 400 });
     }
 
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
+    const uploadsDir = path.join(process.cwd(), "public", "images", "products", "otros");
     
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
@@ -43,7 +43,7 @@ export const POST = async (req: Request) => {
     const arrayBuffer = await file.arrayBuffer();
     fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
 
-    const imageUrl = `/uploads/${fileName}`;
+    const imageUrl = `/images/products/otros/${fileName}`;
 
     return NextResponse.json({
       success: true,

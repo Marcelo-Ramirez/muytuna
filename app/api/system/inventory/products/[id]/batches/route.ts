@@ -85,32 +85,59 @@ export async function POST(
       );
     }
 
+    // Verificar que el usuario existe (para evitar error de clave foránea en movimiento)
+    const userId = parseInt(session.user.id);
+    if (isNaN(userId)) {
+        return NextResponse.json({ success: false, error: 'ID de usuario inválido en sesión' }, { status: 400 });
+    }
+    const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+        return NextResponse.json({ success: false, error: 'Usuario no encontrado en la base de datos. Por favor inicie sesión nuevamente.' }, { status: 401 });
+    }
+
     // Generar número de lote único
     const batchNumber = generateBatchNumber(
       productionDate ? new Date(productionDate) : new Date()
     );
 
-    // Crear el lote
-    const batch = await prisma.productBatch.create({
-      data: {
-        productId,
-        batchNumber,
-        quantity: parseFloat(quantity),
-        remaining: parseFloat(quantity),
-        productionDate: productionDate ? new Date(productionDate) : new Date(),
-        expiryDate: expiryDate ? new Date(expiryDate) : null,
-        notes: notes || null,
-      },
-    });
-
-    // Actualizar cantidad total del producto
-    await prisma.product.update({
-      where: { id: productId },
-      data: {
-        currentQuantity: {
-          increment: parseFloat(quantity),
+    // Crear el lote, registrar movimiento y actualizar producto en una transacción interactiva
+    const { batch, movement, updatedProduct } = await prisma.$transaction(async (tx) => {
+      // 1. Crear el lote
+      const batch = await tx.productBatch.create({
+        data: {
+          productId,
+          batchNumber,
+          initialQuantity: parseFloat(quantity),
+          remaining: parseFloat(quantity),
+          productionDate: productionDate ? new Date(productionDate) : new Date(),
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          notes: notes || null,
         },
-      },
+      });
+
+      // 2. Registrar movimiento de entrada vinculado al lote
+      const movement = await tx.productMovement.create({
+        data: {
+          userId, // Usamos el ID verificado
+          productId,
+          batchId: batch.id, // Ahora sí podemos vincularlo
+          movementType: 'entrada',
+          quantity: parseFloat(quantity),
+          notes: `Creación de lote: ${batchNumber}`, // Usamos notes en lugar de reason
+        },
+      });
+
+      // 3. Actualizar producto
+      const updatedProduct = await tx.product.update({
+        where: { id: productId },
+        data: {
+          currentQuantity: {
+            increment: parseFloat(quantity),
+          },
+        },
+      });
+
+      return { batch, movement, updatedProduct };
     });
 
     return NextResponse.json(
