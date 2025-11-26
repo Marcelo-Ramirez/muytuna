@@ -33,6 +33,7 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
     const [isLoading, setIsLoading] = useState(true); 
     const [isQrModalOpen, setIsQrModalOpen] = useState(false); 
     const [isInitiating, setIsInitiating] = useState(false); 
+    const [orderId, setOrderId] = useState<number | null>(null);
 
 
     useEffect(() => {
@@ -90,7 +91,8 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
                 throw new Error(errorData.error || "Fallo al iniciar el pedido. Verifique el stock.");
             }
 
-            
+            const data = await res.json();
+            setOrderId(typeof data.orderId === 'number' ? data.orderId : parseInt(String(data.orderId || ''), 10));
             onClose(); 
             setIsQrModalOpen(true); 
 
@@ -113,25 +115,28 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
     };
 
     // 4. ✅ FUNCIÓN FINAL Y CORREGIDA: Se ejecuta cuando el cliente presiona "Ya pagué" en el modal QR
-    const handlePaymentSubmitted = () => {
-        // 1. Cierra el modal QR
+    const handlePaymentSubmitted = async () => {
         setIsQrModalOpen(false);
-        
-        // ✅ 2. LIMPIAR EL CARRITO AHORA
         try {
-            console.log("Limpiando carrito..."); // DEBUG
-            localStorage.removeItem('userCart'); // Elimina del navegador
-            setCart({}); // Resetea el estado local de React
-            console.log("Carrito limpiado."); // DEBUG
+            if (orderId !== null && !Number.isNaN(orderId)) {
+                const res = await fetch('/api/public/factura', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderId }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    alert(data?.error ? String(data.error) : 'No fue posible enviar el recibo.');
+                }
+            }
         } catch (e) {
-             console.error("Error al limpiar el carrito:", e);
-             alert("Hubo un problema al vaciar tu carrito local.");
+            alert('Hubo un problema al notificar el pago.');
         }
-        
-        // 3. Muestra mensaje al cliente
+        try {
+            localStorage.removeItem('userCart');
+            setCart({});
+        } catch {}
         alert('Gracias por tu notificación. Nuestro equipo verificará tu pago pronto.');
-        
-        // 4. Redirige al historial
         router.push('/orders'); 
     };
 
