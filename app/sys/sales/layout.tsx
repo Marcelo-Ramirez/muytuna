@@ -18,11 +18,11 @@ export default function SystemLayout({
   }
 
   // Definir las clases de margen y ancho en Tailwind
-  const marginLeftClass = isSidebarCollapsed ? 'ml-16' : 'ml-64' // 64px y 256px de Tailwind
+  const marginLeftClass = isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64' // apply margin only on md+
 
   return (
     // Reemplaza Flex: Contenedor principal con Flexbox y altura mínima
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 mt-9 md:mt-0">
       
       {/* Renderiza el Sidebar (asume que SystemSidebar ya usa Tailwind) */}
       <SystemSidebar

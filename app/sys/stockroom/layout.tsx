@@ -19,7 +19,7 @@ export default function SystemLayout({
 
   // Definir las clases de margen y ancho en Tailwind para el empuje del contenido
   // 60px -> ml-16 | 250px -> ml-64 (Ajusta si tus anchos reales son distintos a 64px/256px)
-  const marginLeftClass = isSidebarCollapsed ? 'ml-16' : 'ml-64' 
+  const marginLeftClass = isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64' 
 
   return (
     // Reemplaza Flex: Contenedor principal con Flexbox y altura mínima
