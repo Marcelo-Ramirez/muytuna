@@ -5,7 +5,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Trash2, Phone, MapPin, CheckCircle, Clock, XCircle, Download } from 'lucide-react';
+import { Loader2, ArrowLeft, Trash2, Phone, MapPin, CheckCircle, Clock, XCircle, Download, Truck, Store } from 'lucide-react';
 import { getProductImage } from '@/components/imageMap/productImages';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
@@ -49,6 +49,13 @@ interface Order {
   };
 }
 
+// Helper: Extraer solo la dirección sin las coordenadas (formato: "dirección||lat,lng")
+const getDisplayAddress = (address: string | null): string | null => {
+  if (!address) return null;
+  const parts = address.split('||');
+  return parts[0];
+};
+
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -62,6 +69,8 @@ export default function OrderDetailPage() {
   const [isDownloadingQR, setIsDownloadingQR] = useState(false);
   const [showAddressMap, setShowAddressMap] = useState(false);
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
+  const [wantsDelivery, setWantsDelivery] = useState(false);
+  const [isUpdatingDelivery, setIsUpdatingDelivery] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -77,6 +86,8 @@ export default function OrderDetailPage() {
         }
         const data = await res.json();
         setOrder(data.order);
+        // Inicializar wantsDelivery basado en si tiene dirección o costo de envío
+        setWantsDelivery(!!data.order.shippingAddress || data.order.shippingCost > 0);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar el pedido');
       } finally {
@@ -133,18 +144,57 @@ export default function OrderDetailPage() {
     }
   };
 
-  // Actualizar dirección de envío
-  const handleAddressSelect = async (address: string, lat: number, lng: number) => {
+  // Cambiar tipo de entrega (envío a domicilio o recojo en tienda)
+  const handleDeliveryToggle = async (enableDelivery: boolean) => {
     if (!order) return;
-    setIsUpdatingAddress(true);
+    setIsUpdatingDelivery(true);
+    setWantsDelivery(enableDelivery);
 
     try {
       const res = await fetch(`/api/client/orders/${order.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'toggle_delivery',
+          enableDelivery,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Error al actualizar tipo de entrega');
+      }
+
+      const data = await res.json();
+      setOrder(data.order);
+
+      // Si activa envío, abrir mapa para seleccionar dirección
+      if (enableDelivery && !order.shippingAddress) {
+        setShowAddressMap(true);
+      }
+    } catch (err) {
+      setWantsDelivery(!enableDelivery); // Revertir
+      alert(err instanceof Error ? err.message : 'Error al actualizar');
+    } finally {
+      setIsUpdatingDelivery(false);
+    }
+  };
+
+  // Actualizar dirección de envío
+  const handleAddressSelect = async (address: string, lat: number, lng: number) => {
+    if (!order) return;
+    setIsUpdatingAddress(true);
+
+    try {
+      // Guardar coordenadas junto con la dirección para el mapa de ventas
+      const addressWithCoords = `${address}||${lat},${lng}`;
+      
+      const res = await fetch(`/api/client/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           action: 'update_shipping',
-          shippingAddress: address,
+          shippingAddress: addressWithCoords,
         }),
       });
 
@@ -265,25 +315,75 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Dirección de Envío */}
-        <div 
-          className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:bg-neutral-50 transition-colors"
-          onClick={() => setShowAddressMap(true)}
-        >
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="font-semibold text-neutral-800">Dirección de Envío</h2>
-            <span className="text-sm text-amber-600">Editar</span>
+        {/* Tipo de Entrega */}
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <h2 className="font-semibold text-neutral-800 mb-3">Tipo de Entrega</h2>
+          
+          <div className="grid grid-cols-2 gap-3">
+            {/* Opción: Recoger en tienda */}
+            <button
+              onClick={() => handleDeliveryToggle(false)}
+              disabled={isUpdatingDelivery}
+              className={`p-3 rounded-xl border-2 transition-all ${
+                !wantsDelivery 
+                  ? 'border-amber-500 bg-amber-50' 
+                  : 'border-neutral-200 hover:border-neutral-300'
+              }`}
+            >
+              <Store className={`h-6 w-6 mx-auto mb-2 ${!wantsDelivery ? 'text-amber-600' : 'text-neutral-400'}`} />
+              <p className={`text-sm font-medium ${!wantsDelivery ? 'text-amber-700' : 'text-neutral-600'}`}>
+                Recoger en tienda
+              </p>
+              <p className="text-xs text-neutral-500 mt-1">Gratis</p>
+            </button>
+
+            {/* Opción: Envío a domicilio */}
+            <button
+              onClick={() => handleDeliveryToggle(true)}
+              disabled={isUpdatingDelivery}
+              className={`p-3 rounded-xl border-2 transition-all ${
+                wantsDelivery 
+                  ? 'border-amber-500 bg-amber-50' 
+                  : 'border-neutral-200 hover:border-neutral-300'
+              }`}
+            >
+              <Truck className={`h-6 w-6 mx-auto mb-2 ${wantsDelivery ? 'text-amber-600' : 'text-neutral-400'}`} />
+              <p className={`text-sm font-medium ${wantsDelivery ? 'text-amber-700' : 'text-neutral-600'}`}>
+                Envío a domicilio
+              </p>
+              <p className="text-xs text-neutral-500 mt-1">Bs 3.00</p>
+            </button>
           </div>
 
-          <div className="flex items-center gap-3 text-neutral-600">
-            <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <MapPin className="h-4 w-4 text-amber-600" />
+          {isUpdatingDelivery && (
+            <div className="flex items-center justify-center mt-3">
+              <Loader2 className="h-4 w-4 animate-spin text-amber-500 mr-2" />
+              <span className="text-sm text-neutral-500">Actualizando...</span>
             </div>
-            <p className="text-sm flex-1">
-              {order.shippingAddress || 'Toca para agregar tu dirección'}
-            </p>
-          </div>
+          )}
         </div>
+
+        {/* Dirección de Envío (solo si quiere delivery) */}
+        {wantsDelivery && (
+          <div 
+            className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:bg-neutral-50 transition-colors"
+            onClick={() => setShowAddressMap(true)}
+          >
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-semibold text-neutral-800">Dirección de Envío</h2>
+              <span className="text-sm text-amber-600">Editar</span>
+            </div>
+
+            <div className="flex items-center gap-3 text-neutral-600">
+              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <MapPin className="h-4 w-4 text-amber-600" />
+              </div>
+              <p className="text-sm flex-1">
+                {getDisplayAddress(order.shippingAddress) || 'Toca para agregar tu dirección'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Estado del Pedido */}
         <div className="bg-white rounded-xl p-4 shadow-sm">

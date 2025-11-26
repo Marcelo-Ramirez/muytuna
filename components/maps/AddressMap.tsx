@@ -58,11 +58,49 @@ export default function AddressMap({ initialAddress, onAddressSelect, onClose }:
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [locationRequested, setLocationRequested] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Pedir ubicación automáticamente al montar el componente
+  useEffect(() => {
+    if (mounted && !locationRequested && !initialAddress) {
+      setLocationRequested(true);
+      requestCurrentLocation();
+    }
+  }, [mounted, locationRequested, initialAddress]);
+
+  // Función para solicitar ubicación
+  const requestCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      console.log('Geolocalización no soportada');
+      return;
+    }
+
+    setIsLoadingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const newPos: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setPosition(newPos);
+        setMapCenter(newPos);
+        await getAddressFromCoords(newPos[0], newPos[1]);
+        setIsLoadingLocation(false);
+      },
+      (error) => {
+        console.log('Error o permiso denegado:', error.message);
+        setIsLoadingLocation(false);
+        // No mostrar alerta si es la primera vez, solo usar ubicación por defecto
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
 
   // Obtener dirección desde coordenadas (reverse geocoding)
   const getAddressFromCoords = async (lat: number, lng: number) => {
@@ -126,7 +164,7 @@ export default function AddressMap({ initialAddress, onAddressSelect, onClose }:
     }, 1000);
   };
 
-  // Obtener ubicación actual del usuario
+  // Obtener ubicación actual del usuario (botón manual)
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert('Tu navegador no soporta geolocalización');
@@ -144,7 +182,7 @@ export default function AddressMap({ initialAddress, onAddressSelect, onClose }:
       },
       (error) => {
         console.error('Error de geolocalización:', error);
-        alert('No se pudo obtener tu ubicación. Verifica los permisos.');
+        alert('No se pudo obtener tu ubicación. Verifica los permisos de ubicación en tu navegador.');
         setIsLoadingLocation(false);
       },
       {

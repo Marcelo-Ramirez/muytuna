@@ -87,6 +87,7 @@ export async function PATCH(req: Request, context: RouteContext) {
     }
 
     let updateData: Record<string, unknown> = {};
+    const SHIPPING_COST = 3.00; // Costo de envío fijo
 
     switch (action) {
       case 'confirm_payment':
@@ -108,6 +109,20 @@ export async function PATCH(req: Request, context: RouteContext) {
           contactPhone: contactPhone || existingOrder.contactPhone
         };
         break;
+
+      case 'toggle_delivery': {
+        const enableDelivery = body.enableDelivery as boolean;
+        const newShippingCost = enableDelivery ? SHIPPING_COST : 0;
+        const newTotalAmount = existingOrder.subtotal + newShippingCost + existingOrder.taxAmount;
+        
+        updateData = {
+          shippingCost: newShippingCost,
+          totalAmount: newTotalAmount,
+          // Si desactiva delivery, limpiar la dirección
+          shippingAddress: enableDelivery ? existingOrder.shippingAddress : null
+        };
+        break;
+      }
 
       default:
         return NextResponse.json({ error: 'Acción no válida' }, { status: 400 });

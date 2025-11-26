@@ -1,8 +1,8 @@
 // components/sales/SalesOrdersPage.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Loader2, Calendar, Package } from 'lucide-react'; 
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { Loader2, Calendar, Package, MapPin, X } from 'lucide-react'; 
 import { toast } from 'sonner';
 
 // Importa componentes Shadcn UI
@@ -11,6 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+
+// Lazy load del mapa
+const OrdersMapPanel = lazy(() => import('@/components/maps/OrdersMapPanel'));
 
 // --- Tipos e Interfaces ---
 interface ProductDetails {
@@ -86,6 +89,8 @@ export default function SalesOrdersPage() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showMapPanel, setShowMapPanel] = useState(false);
+    const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
     // --- Lógica de Fetch ---
     const fetchOrders = async () => {
@@ -146,29 +151,63 @@ export default function SalesOrdersPage() {
         return orders.filter(order => filter === 'all' || !filter || order.status === filter);
     }, [orders, filter]);
 
+    // Órdenes con dirección para el mapa
+    const ordersWithAddress = useMemo(() => {
+        return orders.filter(order => order.shippingAddress);
+    }, [orders]);
+
+    // Manejar click en pedido para ver en mapa
+    const handleShowOnMap = (orderId: number) => {
+        setSelectedOrderId(orderId);
+        setShowMapPanel(true);
+    };
+
 
     // --- JSX PRINCIPAL ---
     return (
-        <div className="p-4 md:p-6 space-y-6">
+        <div className="flex h-full">
+            {/* Panel principal de pedidos */}
+            <div className={`flex-1 transition-all duration-300 ${showMapPanel ? 'mr-0 lg:mr-[400px]' : ''}`}>
+                <div className="p-4 md:p-6 space-y-6">
             
             {/* Header y Filtro */}
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">Pedidos de Venta</h1>
                 
-                {/* Filtro de Estado */}
-                <div className="w-full sm:w-auto min-w-[150px]">
-                    <Select value={filter} onValueChange={setFilter}>
-                        <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Filtrar por estado" /> 
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todos</SelectItem> 
-                            <SelectItem value="pending">Pendientes</SelectItem>
-                            <SelectItem value="paid">Pagados</SelectItem>
-                            <SelectItem value="completed">Completados</SelectItem>
-                            <SelectItem value="cancelled">Cancelados</SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div className="flex items-center gap-3">
+                    {/* Botón Ver Mapa */}
+                    <Button
+                        variant={showMapPanel ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowMapPanel(!showMapPanel)}
+                        className="gap-2"
+                    >
+                        <MapPin className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                            {showMapPanel ? 'Ocultar Mapa' : 'Ver Mapa'}
+                        </span>
+                        {ordersWithAddress.length > 0 && (
+                            <Badge variant="secondary" className="ml-1">
+                                {ordersWithAddress.length}
+                            </Badge>
+                        )}
+                    </Button>
+
+                    {/* Filtro de Estado */}
+                    <div className="w-full sm:w-auto min-w-[150px]">
+                        <Select value={filter} onValueChange={setFilter}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Filtrar por estado" /> 
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todos</SelectItem> 
+                                <SelectItem value="pending">Pendientes</SelectItem>
+                                <SelectItem value="paid">Pagados</SelectItem>
+                                <SelectItem value="completed">Completados</SelectItem>
+                                <SelectItem value="cancelled">Cancelados</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </div>
             
@@ -193,7 +232,7 @@ export default function SalesOrdersPage() {
                             return (
                                 <Card 
                                     key={order.id} 
-                                    className="shadow-md hover:shadow-lg transition-shadow duration-300"
+                                    className={`shadow-md hover:shadow-lg transition-shadow duration-300 ${selectedOrderId === order.id ? 'ring-2 ring-primary' : ''}`}
                                 >
                                     <CardContent className="p-4 sm:p-6">
                                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -213,6 +252,16 @@ export default function SalesOrdersPage() {
                                                     <p className="text-sm text-muted-foreground">
                                                         Cliente: {order.user.name}
                                                     </p>
+                                                )}
+                                                {/* Dirección de envío */}
+                                                {order.shippingAddress && (
+                                                    <button
+                                                        onClick={() => handleShowOnMap(order.id)}
+                                                        className="flex items-center gap-2 text-sm text-primary hover:underline mt-1"
+                                                    >
+                                                        <MapPin className="h-3 w-3" />
+                                                        <span className="truncate max-w-[200px]">{order.shippingAddress}</span>
+                                                    </button>
                                                 )}
                                             </div>
                                             
@@ -310,6 +359,24 @@ export default function SalesOrdersPage() {
                         </Card>
                     )}
                 </div>
+            )}
+                </div>
+            </div>
+
+            {/* Panel lateral del mapa */}
+            {showMapPanel && (
+                <Suspense fallback={
+                    <div className="fixed right-0 top-0 h-full w-full lg:w-[400px] bg-background border-l flex items-center justify-center z-40">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                }>
+                    <OrdersMapPanel
+                        orders={ordersWithAddress}
+                        selectedOrderId={selectedOrderId}
+                        onSelectOrder={setSelectedOrderId}
+                        onClose={() => setShowMapPanel(false)}
+                    />
+                </Suspense>
             )}
         </div>
     );
