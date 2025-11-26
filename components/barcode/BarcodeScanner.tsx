@@ -40,6 +40,7 @@ interface BarcodeScannerProps {
   readonly className?: string;
   readonly placeholder?: string;
   readonly autoFocus?: boolean;
+  readonly beepVolume?: number;
 }
 
 export function BarcodeScanner({
@@ -48,6 +49,7 @@ export function BarcodeScanner({
   className = '',
   placeholder = 'Escanea o ingresa código de barras / SKU...',
   autoFocus = true,
+  beepVolume = 0.6,
 }: BarcodeScannerProps) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,6 +64,103 @@ export function BarcodeScanner({
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [initializingCamera, setInitializingCamera] = useState(false);
+  // Overlay/focus visual when a barcode is detected
+  const [focusRect, setFocusRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  } | null>(null);
+
+  // Reusable AudioContext for beeps
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Initialize and unlock audio on user interaction
+  useEffect(() => {
+    const initAudio = () => {
+      if (!audioContextRef.current) {
+        try {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) {
+            audioContextRef.current = new AudioContextClass();
+          }
+        } catch (e) {
+          console.warn('AudioContext not available', e);
+        }
+      }
+      // Resume if suspended (required by some browsers after user gesture)
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        void audioContextRef.current.resume();
+      }
+    };
+
+    // Unlock audio on first user interaction (click, touch, keydown)
+    const unlockAudio = () => {
+      initAudio();
+      // Remove listeners after first interaction
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    };
+
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+    document.addEventListener('keydown', unlockAudio, { once: true });
+
+    return () => {
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
+
+  // Simple beep using WebAudio
+  const playBeep = (opts?: { durationMs?: number; frequency?: number; volume?: number }) => {
+    try {
+      const duration = opts?.durationMs ?? 150;
+      const freq = opts?.frequency ?? 1200;
+      const vol = opts?.volume ?? 0.3;
+
+      const ctx = audioContextRef.current;
+      if (!ctx) {
+        console.warn('AudioContext not initialized');
+        return;
+      }
+
+      // Ensure context is running
+      if (ctx.state === 'suspended') {
+        void ctx.resume();
+      }
+
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      g.gain.value = vol;
+      o.connect(g);
+      g.connect(ctx.destination);
+
+      const startTime = ctx.currentTime;
+      o.start(startTime);
+      // Fade out quickly at the end
+      g.gain.setValueAtTime(vol, startTime);
+      g.gain.exponentialRampToValueAtTime(0.01, startTime + duration / 1000);
+      o.stop(startTime + duration / 1000);
+
+      // Clean up nodes after playback
+      setTimeout(() => {
+        try {
+          o.disconnect();
+          g.disconnect();
+        } catch (e) {
+          // ignore if already disconnected
+        }
+      }, duration + 50);
+    } catch (err) {
+      console.warn('Beep failed', err);
+    }
+  };
 
   useEffect(() => {
     if (autoFocus && inputRef.current) {
@@ -174,6 +273,75 @@ export function BarcodeScanner({
           }
           if (result) {
             const text = result.getText();
+            // compute focus rectangle from result points and show visual feedback
+            try {
+              const points = (result as any).getResultPoints?.() as
+                | Array<{ x: number; y: number }>
+                | undefined;
+
+              if (videoRef.current && points && points.length > 0) {
+                const video = videoRef.current as HTMLVideoElement;
+                const rect = video.getBoundingClientRect();
+
+                // Map points (camera coordinate space) into video element coordinates.
+                // ZXing result points are in the image coordinate system; we approximate by
+                // normalizing by videoWidth/videoHeight if available, else use bounding box.
+                const videoWidth = (video.videoWidth && video.videoWidth > 0) ? video.videoWidth : rect.width;
+                const videoHeight = (video.videoHeight && video.videoHeight > 0) ? video.videoHeight : rect.height;
+
+                const xs = points.map((p) => p.x);
+                const ys = points.map((p) => p.y);
+                const minX = Math.min(...xs);
+                const maxX = Math.max(...xs);
+                const minY = Math.min(...ys);
+                const maxY = Math.max(...ys);
+
+                // scale to element size
+                const scaleX = rect.width / videoWidth;
+                const scaleY = rect.height / videoHeight;
+
+                const fx = (minX * scaleX);
+                const fy = (minY * scaleY);
+                const fwidth = Math.max(24, (maxX - minX) * scaleX);
+                const fheight = Math.max(8, (maxY - minY) * scaleY);
+
+                // convert to relative coords within video container
+                const containerRect = video.parentElement?.getBoundingClientRect() || rect;
+                const relX = fx;
+                const relY = fy;
+
+                setFocusRect({ x: relX, y: relY, width: fwidth, height: fheight, visible: true });
+
+                // play beep for new codes
+                if (text && text !== lastScanRef.current) {
+                  playBeep({ volume: beepVolume });
+                }
+
+                // hide after 1s but keep scanner running
+                window.setTimeout(() => {
+                  setFocusRect((s) => (s ? { ...s, visible: false } : s));
+                }, 1000);
+              } else if (videoRef.current) {
+                // fallback: center small rect
+                const video = videoRef.current as HTMLVideoElement;
+                const rect = video.getBoundingClientRect();
+                const fwidth = Math.min(240, rect.width * 0.6);
+                const fheight = Math.min(80, rect.height * 0.25);
+                const fx = (rect.width - fwidth) / 2;
+                const fy = (rect.height - fheight) / 2;
+                setFocusRect({ x: fx, y: fy, width: fwidth, height: fheight, visible: true });
+                if (text && text !== lastScanRef.current) {
+                  playBeep({ volume: beepVolume });
+                }
+                window.setTimeout(() => {
+                  setFocusRect((s) => (s ? { ...s, visible: false } : s));
+                }, 1000);
+              }
+            } catch (err) {
+              // ignore overlay errors
+              console.warn('Error computing focus rect', err);
+            }
+
             if (text && text !== lastScanRef.current) {
               lastScanRef.current = text;
               handleSearch(text);
@@ -323,13 +491,37 @@ export function BarcodeScanner({
 
         {cameraEnabled && (
           <div className="rounded-md border border-dashed border-border overflow-hidden">
-            <video
-              ref={videoRef}
-              className="w-full aspect-video object-cover bg-black"
-              muted
-              autoPlay
-              playsInline
-            />
+            <div className="relative">
+              <video
+                ref={videoRef}
+                className="w-full aspect-video object-cover bg-black"
+                muted
+                autoPlay
+                playsInline
+              />
+
+              {/* Focus overlay: positioned absolutely over the video element */}
+              {focusRect && (
+                <div
+                  aria-hidden
+                  className={`pointer-events-none absolute transition-opacity duration-200 ease-out ${
+                    focusRect.visible ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  style={{
+                    left: focusRect.x,
+                    top: focusRect.y,
+                    width: focusRect.width,
+                    height: focusRect.height,
+                    boxShadow: focusRect.visible
+                      ? '0 0 12px 4px rgba(34,197,94,0.85), inset 0 0 8px rgba(34,197,94,0.35)'
+                      : 'none',
+                    border: '2px solid rgba(34,197,94,0.95)',
+                    borderRadius: 6,
+                    mixBlendMode: 'screen',
+                  }}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>
