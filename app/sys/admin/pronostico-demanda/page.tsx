@@ -158,6 +158,13 @@ export default function DemandForecastPage() {
 
     const hasForecastsToShow = filteredForecasts.length > 0;
     const allDataAreInsufficient = forecasts.length > 0 && !hasForecastsToShow;
+
+    // Calcular Pronóstico Total para Planificación Agregada
+    const totalForecast = filteredForecasts.reduce((sum, item) => {
+        // CORRECCIÓN: Redondear cada valor individualmente antes de sumar para coincidir con la visualización
+        return sum + Math.round(item.forecast_next_period || 0);
+    }, 0);
+
     // --- VISTA PRINCIPAL (JSX) ---
     return (
         <div className="p-4 md:p-6 space-y-6">
@@ -198,14 +205,27 @@ export default function DemandForecastPage() {
             {/* 3. Results/Status Card */}
             <Card className="shadow-lg">
                 <CardHeader>
-                    <div className="flex justify-between items-start">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <CardTitle className="text-lg font-semibold">Resultados por Producto</CardTitle>
                             <CardDescription>Comparación de modelos y pronóstico final recomendado.</CardDescription>
                         </div>
-                        <div className="relative w-full max-w-sm">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="Buscar producto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 w-full" />
+                        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                            {hasForecastsToShow && (
+                                <Button 
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={() => {
+                                        window.location.href = `/sys/admin/aggregate-planning?productName=Todos%20los%20Productos&forecast=${totalForecast.toFixed(0)}`;
+                                    }}
+                                >
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    Planificación Global ({totalForecast.toFixed(0)} u.)
+                                </Button>
+                            )}
+                            <div className="relative w-full md:w-64">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input placeholder="Buscar producto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 w-full" />
+                            </div>
                         </div>
                     </div>
                 </CardHeader>
@@ -253,13 +273,13 @@ export default function DemandForecastPage() {
                                             <MetricTooltip abbreviation="SMA-3" fullName="Promedio Móvil Simple (N=3) - MAPE/Pronóstico" />
                                         </TableHead>
                                         <TableHead className="text-center">
+                                            <MetricTooltip abbreviation="SMA-6" fullName="Promedio Móvil Simple (N=6) - MAPE/Pronóstico" />
+                                        </TableHead>
+                                        <TableHead className="text-center">
                                             <MetricTooltip abbreviation="WMA-3" fullName="Media Móvil Ponderada (N=3) - MAPE/Pronóstico" />
                                         </TableHead>
                                         <TableHead className="text-center">
                                             <MetricTooltip abbreviation="SES-0.2" fullName="Suavización Exponencial (α=0.2) - MAPE/Pronóstico" />
-                                        </TableHead>
-                                        <TableHead className="text-center">
-                                            <MetricTooltip abbreviation="MAD (Mejor)" fullName="Desviación Absoluta Media del modelo con menor MAPE." />
                                         </TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -320,6 +340,22 @@ export default function DemandForecastPage() {
                                                     ) : 'N/A'}
                                                 </TableCell>
                                                 
+                                                {/* Columna SMA-6: F_t+1 y MAPE */}
+                                                <TableCell className="text-center font-mono">
+                                                    {getMetric(item, 'SMA_6', 'NextForecast') !== undefined && getMetric(item, 'SMA_6', 'NextForecast') !== null ? (
+                                                        <>
+                                                            <p className="font-semibold text-base text-gray-800 dark:text-gray-300">
+                                                                {getMetric(item, 'SMA_6', 'NextForecast')?.toFixed(0)} u.
+                                                            </p>
+                                                            <p className="text-muted-foreground text-xs">
+                                                                (MAPE: {getMetric(item, 'SMA_6', 'MAPE')?.toFixed(1) || 'N/A'}%)
+                                                            </p>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground italic">Insuf. Datos</span>
+                                                    )}
+                                                </TableCell>
+                                                
                                                 {/* Columna WMA-3: F_t+1 y MAPE */}
                                                 <TableCell className="text-center font-mono">
                                                     {getMetric(item, 'WMA_3', 'NextForecast') !== undefined && getMetric(item, 'WMA_3', 'NextForecast') !== null ? (
@@ -346,14 +382,6 @@ export default function DemandForecastPage() {
                                                             </p>
                                                         </>
                                                     ) : 'N/A'}
-                                                </TableCell>
-
-                                                {/* MAD of the Best Model */}
-                                                <TableCell className="text-center font-mono text-xs">
-                                                    {bestModelMad !== undefined && bestModelMad !== null
-                                                        ? `${bestModelMad.toFixed(1)} u.`
-                                                        : 'N/A'
-                                                    }
                                                 </TableCell>
                                             </TableRow>
                                         );
