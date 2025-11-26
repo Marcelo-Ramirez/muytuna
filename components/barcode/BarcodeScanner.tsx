@@ -41,6 +41,7 @@ interface BarcodeScannerProps {
   readonly placeholder?: string;
   readonly autoFocus?: boolean;
   readonly beepVolume?: number;
+  readonly beepFrequency?: number;
 }
 
 export function BarcodeScanner({
@@ -49,7 +50,8 @@ export function BarcodeScanner({
   className = '',
   placeholder = 'Escanea o ingresa código de barras / SKU...',
   autoFocus = true,
-  beepVolume = 0.6,
+  beepVolume = 0.9,
+  beepFrequency = 2000,
 }: BarcodeScannerProps) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -119,7 +121,7 @@ export function BarcodeScanner({
   const playBeep = (opts?: { durationMs?: number; frequency?: number; volume?: number }) => {
     try {
       const duration = opts?.durationMs ?? 150;
-      const freq = opts?.frequency ?? 1200;
+  const freq = opts?.frequency ?? beepFrequency ?? 2000;
       const vol = opts?.volume ?? 0.3;
 
       const ctx = audioContextRef.current;
@@ -198,9 +200,7 @@ export function BarcodeScanner({
         // Clear input after short delay
         setTimeout(() => {
           setCode('');
-          if (inputRef.current) {
-            inputRef.current.focus();
-          }
+          // do not refocus the input after a scan to avoid stealing focus
         }, 500);
       } else {
         const errorMsg = data.error || 'Producto no encontrado';
@@ -303,7 +303,7 @@ export function BarcodeScanner({
                 const fx = (minX * scaleX);
                 const fy = (minY * scaleY);
                 const fwidth = Math.max(24, (maxX - minX) * scaleX);
-                const fheight = Math.max(8, (maxY - minY) * scaleY);
+                const fheight = Math.max(20, (maxY - minY) * scaleY * 1.6);
 
                 // convert to relative coords within video container
                 const containerRect = video.parentElement?.getBoundingClientRect() || rect;
@@ -326,7 +326,7 @@ export function BarcodeScanner({
                 const video = videoRef.current as HTMLVideoElement;
                 const rect = video.getBoundingClientRect();
                 const fwidth = Math.min(240, rect.width * 0.6);
-                const fheight = Math.min(80, rect.height * 0.25);
+                const fheight = Math.min(160, rect.height * 0.4);
                 const fx = (rect.width - fwidth) / 2;
                 const fy = (rect.height - fheight) / 2;
                 setFocusRect({ x: fx, y: fy, width: fwidth, height: fheight, visible: true });

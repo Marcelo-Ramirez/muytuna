@@ -22,7 +22,7 @@ export default function SystemLayout({
 
   return (
     // Reemplaza Flex: Contenedor principal con Flexbox y altura mínima
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 mt-9 md:mt-0">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
       
       {/* Renderiza el Sidebar (asume que SystemSidebar ya usa Tailwind) */}
       <SystemSidebar
@@ -36,7 +36,8 @@ export default function SystemLayout({
         className={`
           flex-1 flex flex-col 
           ${marginLeftClass} 
-          transition-all duration-300 ease-in-out
+          transition-all duration-300 ease-in-out mt-14
+          md:mt-0
         `} // Flex-1, Flex-col, Margen dinámico y transición
       >
         {/* Reemplaza Box: Área de contenido con padding */}
