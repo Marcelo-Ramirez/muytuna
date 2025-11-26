@@ -227,6 +227,7 @@ model ProductBatch {
   id              Int      @id @default(autoincrement())
   productId       Int      @map("product_id")
   batchNumber     String   @unique @map("batch_number")
+  barcode         String?  @unique
   
   initialQuantity Float    
   remaining       Float    
