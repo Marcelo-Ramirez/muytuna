@@ -47,8 +47,8 @@ export async function seedIngredients(
   }
   console.log(`✅ Modelos EOQ creados`);
 
-  // Crear Movimientos de Inventario
-  console.log('📦 Creando movimientos de inventario...');
+  // Crear Movimientos de Inventario (Generales)
+  console.log('📦 Creando movimientos de inventario generales...');
   for (let i = 0; i < 50; i++) {
     const ingredient = ingredients[random(0, ingredients.length - 1)];
     const user = inventoryStaff[random(0, inventoryStaff.length - 1)]; 
@@ -67,7 +67,37 @@ export async function seedIngredients(
       },
     });
   }
-  console.log(`✅ 50 movimientos de inventario creados`);
+  console.log(`✅ 50 movimientos generales creados`);
+
+  // Crear Movimientos de Salida a Producción (para EOQ)
+  console.log('🏭 Creando movimientos de salida a producción (histórico anual)...');
+  let productionMovementsCount = 0;
+  
+  for (const ingredient of ingredients) {
+    // Generar entre 10-30 movimientos de producción para cada ingrediente en el último año
+    const numMovements = random(10, 30);
+    
+    for (let i = 0; i < numMovements; i++) {
+      const user = inventoryStaff[random(0, inventoryStaff.length - 1)];
+      // Cantidad de salida coherente con el tipo de ingrediente (5-50 unidades enteras)
+      const quantity = random(5, 50);
+      // Distribuir los movimientos uniformemente en los últimos 365 días
+      const daysAgo = random(0, 365);
+      
+      await prisma.inventoryMovement.create({
+        data: {
+          userId: user.id,
+          ingredientId: ingredient.id,
+          movementType: 'salida',
+          reason: 'produccion', // Importante: minúscula para que coincida con el API
+          quantity,
+          createdAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
+        },
+      });
+      productionMovementsCount++;
+    }
+  }
+  console.log(`✅ ${productionMovementsCount} movimientos de producción creados`);
 
   return { ingredients };
 }

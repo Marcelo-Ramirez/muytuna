@@ -29,6 +29,12 @@ export async function GET(request: NextRequest) {
         name: true,
         provider: true,
         pricePerUnit: true,
+        currentQuantity: true,
+        ingredientEOQ: {
+          select: {
+            reorderPoint: true
+          }
+        }
       },
     });
     if (!ingredient) {
