@@ -120,6 +120,8 @@ export const authOptions: AuthOptions = {
   ],
   pages: { signIn: '/login' },
   session: { strategy: 'jwt' },
+  // Configuración para que funcione con cualquier dominio
+  useSecureCookies: process.env.NODE_ENV === 'production',
   callbacks: {
   async signIn({ user, account }) {
       if (account?.provider === 'google') {

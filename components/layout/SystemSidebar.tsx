@@ -156,7 +156,7 @@ export default function SystemSidebar({ role, isCollapsed = false, onToggle }: S
 
                   if (item.isLogout) {
                     return (
-                      <Button key="logout-mobile" variant="ghost" className="w-full p-0" onClick={() => signOut({ callbackUrl: `${window.location.origin}/sys/login` })}>
+                      <Button key="logout-mobile" variant="ghost" className="w-full p-0" onClick={() => signOut({ callbackUrl: "/sys/login" })}>
                         {content}
                       </Button>
                     );
@@ -262,7 +262,7 @@ export default function SystemSidebar({ role, isCollapsed = false, onToggle }: S
                     key="logout"
                     variant="ghost"
                     asChild
-                    onClick={() => signOut({ callbackUrl: `${window.location.origin}/sys/login` })}
+                    onClick={() => signOut({ callbackUrl: "/sys/login" })}
                     className="h-auto w-full p-0"
                   >
                     {ItemContent}
