@@ -28,34 +28,36 @@ export async function GET(req: Request) {
 
     // Convertir términos a minúsculas para búsqueda insensible a mayúsculas
     const termLower = searchTerm.toLowerCase();
-    const filterLower = activeFilter?.toLowerCase();
-
+    
     // Construir la cláusula WHERE
     const where: WhereClause = {};
-
-    // Lógica para búsqueda (searchTerm)
+    const searchConditions: WhereClause[] = [];
+    
     if (searchTerm) {
-      where.OR = [
-        { name: { contains: termLower } },
-        { type: { contains: termLower } },
-        { flavor: { contains: termLower } },
-      ];
+        searchConditions.push({ name: { contains: termLower } });
+        searchConditions.push({ type: { contains: termLower } });
+        searchConditions.push({ flavor: { contains: termLower } });
     }
 
-    // Lógica para filtro de categoría (activeFilter)
+    const filterConditions: WhereClause[] = [];
     if (activeFilter && activeFilter !== 'All') {
-      const filterConditions: WhereClause[] = [
-        { type: { equals: filterLower! } },
-        { flavor: { equals: filterLower! } },
-      ];
+        // Usamos activeFilter directamente para respetar mayúsculas/minúsculas de la BD
+        filterConditions.push({ type: { equals: activeFilter } });
+        filterConditions.push({ flavor: { equals: activeFilter } });
+        // Y también probamos con minúsculas por si acaso
+        filterConditions.push({ type: { equals: activeFilter.toLowerCase() } });
+        filterConditions.push({ flavor: { equals: activeFilter.toLowerCase() } });
+    }
 
-      // Combinar búsqueda y filtro con lógica AND
-      if (where.OR) {
-        where.AND = [{ OR: where.OR }, { OR: filterConditions }];
-        delete where.OR;
-      } else {
+    if (searchTerm && activeFilter && activeFilter !== 'All') {
+        where.AND = [
+            { OR: searchConditions },
+            { OR: filterConditions }
+        ];
+    } else if (searchTerm) {
+        where.OR = searchConditions;
+    } else if (activeFilter && activeFilter !== 'All') {
         where.OR = filterConditions;
-      }
     }
 
     // Contar el total de productos

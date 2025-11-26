@@ -107,7 +107,7 @@ export default function CatalogPage() {
             setLoading(false);
             setIsInitialLoad(false);
         }
-    }, [page, searchTerm, activeFilter, isInitialLoad, products.length]); 
+    }, [page, searchTerm, activeFilter, isInitialLoad]); // REMOVED products.length
 
     // 2. Control de cambios en filtros y búsqueda (Llama a fetchProducts)
     useEffect(() => {
@@ -227,11 +227,11 @@ export default function CatalogPage() {
     const filterOptions = useMemo(() => (
         [
             { value: "All", label: "Todos los sabores" },
-            { value: "Mango", label: "Mango" },
-            { value: "Fresa", label: "Fresa" },
-            { value: "Arándano", label: "Arándano" },
-            { value: "Limón", label: "Limón" },
-            { value: "Piña", label: "Piña" },
+            { value: "Gomita", label: "Gomita" },
+            { value: "Pulpa", label: "Pulpa" },
+            { value: "Manzanilla", label: "Manzanilla" },
+            { value: "Zanahoria", label: "Zanahoria" },
+            { value: "Manzana", label: "Manzana" },
         ]
     ), []);
 
