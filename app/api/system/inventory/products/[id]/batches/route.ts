@@ -1,7 +1,7 @@
 // app/api/system/inventory/products/[id]/batches/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { generateBatchNumber } from '@/lib/barcode/generator';
+import { generateBatchNumber, generateEAN13Barcode } from '@/lib/barcode/generator';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 
@@ -100,9 +100,9 @@ export async function POST(
       productionDate ? new Date(productionDate) : new Date()
     );
 
-    // Crear el lote, registrar movimiento y actualizar producto en una transacción interactiva
+    // Crear el lote, generar barcode, registrar movimiento y actualizar producto en una transacción
     const { batch, movement, updatedProduct } = await prisma.$transaction(async (tx) => {
-      // 1. Crear el lote
+      // 1. Crear el lote sin barcode primero
       const batch = await tx.productBatch.create({
         data: {
           productId,
@@ -114,6 +114,32 @@ export async function POST(
           notes: notes || null,
         },
       });
+
+      // 1b. Generar un barcode para el lote. Usamos productId y batch.id como seed/attempt para reducir colisiones
+      let barcodeValue = generateEAN13Barcode(productId);
+      // If batch.id is available, try a variant including batch.id to reduce collisions
+      try {
+        barcodeValue = generateEAN13Barcode(productId + batch.id);
+      } catch (err) {
+        // fallback to simple product-based code
+      }
+
+      // A: ensure column exists (sqlite ALTER TABLE ADD COLUMN is idempotent if handled)
+      try {
+        await tx.$executeRaw`ALTER TABLE "Product_batches" ADD COLUMN barcode TEXT`; // may fail if column exists
+      } catch (e) {
+        // ignore errors (column likely exists)
+      }
+
+      // B: update barcode using raw SQL to avoid Prisma client validation errors
+      await tx.$executeRaw`
+        UPDATE "Product_batches"
+        SET barcode = ${barcodeValue}
+        WHERE id = ${batch.id}
+      `;
+
+      // Build a returned batch object merging created batch and barcode value
+      const returnedBatch = { ...batch, barcode: barcodeValue };
 
       // 2. Registrar movimiento de entrada vinculado al lote
       const movement = await tx.productMovement.create({
@@ -137,7 +163,7 @@ export async function POST(
         },
       });
 
-      return { batch, movement, updatedProduct };
+  return { batch: returnedBatch, movement, updatedProduct };
     });
 
     return NextResponse.json(

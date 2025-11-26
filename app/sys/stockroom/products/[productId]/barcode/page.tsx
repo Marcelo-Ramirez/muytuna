@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { BarcodePrintable } from '@/components/barcode/BarcodePrintable';
-import { Printer, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Printer, ArrowLeft } from 'lucide-react';
 
 interface Product {
   id: number;
@@ -37,8 +37,7 @@ export default function ProductBarcodePage() {
   const [batchNumber, setBatchNumber] = useState('');
   
   // Serialization State
-  const [isSerializedMode, setIsSerializedMode] = useState(false);
-  const [sequenceRange, setSequenceRange] = useState<{start: number, end: number} | null>(null);
+  // serialization removed: printing will always use simple copies
 
   const fetchProduct = useCallback(() => {
     const run = async () => {
@@ -88,80 +87,11 @@ export default function ProductBarcodePage() {
   });
 
   const handlePrintWithSequence = async () => {
-    if (!isSerializedMode) {
-      handlePrint();
-      return;
-    }
-
-    try {
-      // 1. Reservar secuencia
-      const res = await fetch('/api/system/barcode/sequence', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product?.id,
-          count: copies
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-
-      // 2. Actualizar estado para que el componente BarcodePrintable se actualice
-      setSequenceRange({ start: data.start, end: data.end });
-
-      // 3. Esperar un momento para que el DOM se actualice antes de imprimir
-      setTimeout(() => {
-        handlePrint();
-      }, 100);
-
-    } catch (error) {
-      console.error('Error reservando secuencia:', error);
-      alert('Error al preparar impresión serializada');
-    }
+    // Simple print of the selected number of copies
+    handlePrint();
   };
 
-  const handleGenerateNewBarcode = async () => {
-    if (!product) return;
-
-    try {
-      const res = await fetch('/api/system/barcode/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: product.type,
-          flavor: product.flavor,
-          productId: product.id,
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Error generando código');
-      }
-
-      // Update product in database
-      const updateRes = await fetch(`/api/system/inventory/products/${productId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sku: data.sku,
-          barcode: data.barcode,
-          barcodeFormat: data.barcodeFormat,
-        }),
-      });
-      const updateData = await updateRes.json();
-      if (!updateData.success) {
-        throw new Error(updateData.error || 'Error actualizando producto');
-      }
-
-      // Reload product
-      fetchProduct();
-    } catch (error) {
-      console.error('Error generando nuevo código:', error);
-      alert('Error generando nuevo código');
-    }
-  };
+  // generation of new barcode is intentionally removed from the UI
 
   if (loading) {
     return (
@@ -229,38 +159,7 @@ export default function ProductBarcodePage() {
                 </p>
               </div>
 
-              {/* Serialized Mode Toggle */}
-              <div className="flex items-center space-x-2 pt-2 border-t">
-                <div
-                  onClick={() => {
-                    setIsSerializedMode(!isSerializedMode);
-                    setSequenceRange(null); // Reset range when toggling
-                  }}
-                  className={`w-5 h-5 rounded border-2 cursor-pointer flex items-center justify-center ${
-                    isSerializedMode ? 'bg-blue-600 border-blue-600' : 'border-muted-foreground'
-                  }`}
-                >
-                  {isSerializedMode && (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </div>
-                <Label
-                  className="text-sm font-medium cursor-pointer text-foreground"
-                  onClick={() => {
-                    setIsSerializedMode(!isSerializedMode);
-                    setSequenceRange(null);
-                  }}
-                >
-                  Modo Serializado (Único por etiqueta)
-                </Label>
-              </div>
-              {isSerializedMode && (
-                 <p className="text-xs text-blue-500 ml-7">
-                   Cada etiqueta tendrá un código único (ej. -001, -002) para seguimiento individual.
-                 </p>
-              )}
+              {/* Serialized mode removed from UI */}
 
               <div className="flex items-center space-x-2">
                 <div
@@ -359,22 +258,10 @@ export default function ProductBarcodePage() {
               onClick={handlePrintWithSequence}
               className="w-full"
               size="lg"
-              variant={isSerializedMode ? "default" : "secondary"}
+              variant="secondary"
             >
               <Printer className="h-5 w-5 mr-2" />
-              {isSerializedMode 
-                ? `Imprimir ${copies} Únicos` 
-                : `Imprimir ${copies > 1 ? `${copies} Copias` : 'Etiqueta'}`
-              }
-            </Button>
-
-            <Button
-              onClick={handleGenerateNewBarcode}
-              variant="outline"
-              className="w-full"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Generar Nuevo Código
+              {`Imprimir ${copies > 1 ? `${copies} Copias` : 'Etiqueta'}`}
             </Button>
           </div>
         </div>
@@ -397,8 +284,6 @@ export default function ProductBarcodePage() {
                       showBatchInfo={Boolean(batchNumber || expiryDate)}
                       batchNumber={batchNumber || undefined}
                       expiryDate={expiryDate || null}
-                      startSequence={isSerializedMode ? 1 : undefined} // Preview starts at 1
-                      endSequence={isSerializedMode ? copies : undefined}
                     />
                     {copies > 3 && (
                       <p className="text-center text-xs text-muted-foreground mt-4">
@@ -406,14 +291,11 @@ export default function ProductBarcodePage() {
                       </p>
                     )}
                   </div>
-                ) : (
+                  ) : (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground mb-4">
                       Este producto no tiene código de barras generado
                     </p>
-                    <Button onClick={handleGenerateNewBarcode}>
-                      Generar Código
-                    </Button>
                   </div>
                 )}
               </div>
@@ -425,7 +307,7 @@ export default function ProductBarcodePage() {
       {/* Hidden Print Area */}
       <div className="hidden print:block">
         <div ref={printRef}>
-          {product.barcode || product.sku ? (
+            {product.barcode || product.sku ? (
             <BarcodePrintable
               product={product}
               copies={copies}
@@ -434,8 +316,6 @@ export default function ProductBarcodePage() {
               showBatchInfo={Boolean(batchNumber || expiryDate)}
               batchNumber={batchNumber || undefined}
               expiryDate={expiryDate || null}
-              startSequence={sequenceRange?.start}
-              endSequence={sequenceRange?.end}
             />
           ) : null}
         </div>
