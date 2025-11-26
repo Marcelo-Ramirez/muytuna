@@ -1,165 +1,403 @@
-// app/(sistema_interno)/orders/[orderId]/page.tsx
+// app/orders/[orderId]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation'; // useParams para obtener ID de URL
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, Trash2, Phone, MapPin, CheckCircle, Clock, XCircle, Download } from 'lucide-react';
+import { getProductImage } from '@/components/imageMap/productImages';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
-// --- Tipo de Datos para el Detalle del Pedido ---
-interface OrderItemDetail {
-    productId: number;
-    name: string;
-    imageUrl?: string | null;
-    quantity: number;
-    pricePerUnit: number;
-    subtotal: number;
-}
-interface OrderDetails {
+// Lazy load del mapa para evitar SSR issues
+const AddressMap = lazy(() => import('@/components/maps/AddressMap'));
+
+// Tipos
+interface OrderItem {
+  id: number;
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  product: {
     id: number;
-    orderClientId: number;
-    date?: string;
-    status: string;
-    totalCost: number;
-    items: OrderItemDetail[];
+    name: string;
+    imageUrl: string;
+    flavor?: string;
+  };
 }
-// ---
+
+interface Order {
+  id: number;
+  orderNumber: string;
+  status: string;
+  channel: string;
+  contactPhone: string | null;
+  shippingAddress: string | null;
+  paymentMethod: string | null;
+  subtotal: number;
+  shippingCost: number;
+  taxAmount: number;
+  totalAmount: number;
+  createdAt: string;
+  paidAt: string | null;
+  items: OrderItem[];
+  user?: {
+    name: string;
+    phone: string | null;
+    email: string | null;
+  };
+}
 
 export default function OrderDetailPage() {
-    const params = useParams();
-    const router = useRouter();
-    const orderId = params.orderId as string; // Obtener el ID de la URL
+  const params = useParams();
+  const router = useRouter();
+  const orderId = params.orderId as string;
 
-    const [order, setOrder] = useState<OrderDetails | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDownloadingQR, setIsDownloadingQR] = useState(false);
+  const [showAddressMap, setShowAddressMap] = useState(false);
+  const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
 
-    useEffect(() => {
-        if (!orderId) return; // No hacer fetch si no hay ID
+  useEffect(() => {
+    if (!orderId) return;
 
-        const fetchOrderDetails = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                // Llama a la nueva API de detalle
-                const res = await fetch(`/api/client/orders/${orderId}`); 
-                if (!res.ok) {
-                    const errData = await res.json();
-                    throw new Error(errData.error || 'No se pudo cargar el pedido');
-                }
-                const data = await res.json();
-                setOrder(data.order);
-            // app/(sistema_interno)/orders/[orderId]/page.tsx
-// ...
-            } catch (err) { // ✅ 'err' es ahora 'unknown'
-                let errorMessage = 'Error desconocido al cargar el pedido.';
-                
-                // 💡 Comprobación de tipo para asegurar que tiene 'message'
-                if (err instanceof Error) {
-                    errorMessage = err.message;
-                } else if (typeof err === 'object' && err !== null && 'message' in err) {
-                    errorMessage = (err as { message: string }).message;
-                }
-                
-                setError(errorMessage);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchOrderDetails();
-    }, [orderId]); // Dependencia del ID de la URL
-
-    // Función para obtener color según estado
-    const getStatusClass = (status: string = '') => {
-        switch (status.toLowerCase()) {
-            case 'confirmado': case 'entregado': return 'text-green-600 font-semibold bg-green-100 px-2 py-1 rounded-md';
-            case 'pendiente_verificacion': return 'text-yellow-600 font-semibold bg-yellow-100 px-2 py-1 rounded-md';
-            case 'cancelado': return 'text-red-600 bg-red-100 px-2 py-1 rounded-md';
-            default: return 'text-gray-500 bg-gray-100 px-2 py-1 rounded-md';
+    const fetchOrder = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/client/orders/${orderId}`);
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'No se pudo cargar el pedido');
         }
+        const data = await res.json();
+        setOrder(data.order);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar el pedido');
+      } finally {
+        setLoading(false);
+      }
     };
 
+    fetchOrder();
+  }, [orderId]);
 
-    if (loading) {
-        return <div className="p-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></div>;
+  // Cancelar/eliminar orden
+  const handleDelete = async () => {
+    if (!order) return;
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`/api/client/orders/${order.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Error al cancelar');
+      }
+
+      router.push('/orders');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al cancelar');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
+  };
 
-    if (error) {
-        return (
-            <div className="p-12 text-center text-red-600">
-                <p>Error: {error}</p>
-                <Button variant="link" onClick={() => router.back()}>Volver</Button>
-            </div>
-        );
+  // Descargar QR de pago
+  const handleDownloadQR = async () => {
+    setIsDownloadingQR(true);
+    try {
+      const response = await fetch('/qr.jpg');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `QR_Pago_${order?.orderNumber || 'pedido'}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error al descargar QR:', err);
+      alert('Error al descargar el QR');
+    } finally {
+      setIsDownloadingQR(false);
     }
+  };
 
-    if (!order) {
-         return <div className="p-12 text-center text-muted-foreground">Pedido no encontrado.</div>;
+  // Actualizar dirección de envío
+  const handleAddressSelect = async (address: string, lat: number, lng: number) => {
+    if (!order) return;
+    setIsUpdatingAddress(true);
+
+    try {
+      const res = await fetch(`/api/client/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_shipping',
+          shippingAddress: address,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Error al actualizar dirección');
+      }
+
+      const data = await res.json();
+      setOrder(data.order);
+      setShowAddressMap(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al actualizar dirección');
+    } finally {
+      setIsUpdatingAddress(false);
     }
+  };
 
+  // Obtener info de estado
+  const getStatusInfo = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return { icon: Clock, color: 'text-yellow-500', bg: 'bg-yellow-500/10', text: 'Pendiente de pago' };
+      case 'paid':
+        return { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', text: 'Pagado - Confirmado' };
+      case 'completed':
+        return { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-600/10', text: 'Completado' };
+      case 'cancelled':
+        return { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', text: 'Cancelado' };
+      default:
+        return { icon: Clock, color: 'text-gray-500', bg: 'bg-gray-500/10', text: status };
+    }
+  };
+
+  if (loading) {
     return (
-        <Card className="max-w-4xl mx-auto">
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle className="text-2xl">Detalle del Pedido #{order.orderClientId}</CardTitle>
-                    <CardDescription>Fecha: {order.date || 'N/A'}</CardDescription>
-                </div>
-                <Button variant="outline" size="icon" onClick={() => router.back()}>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-            </CardHeader>
-            <CardContent>
-                <div className="mb-6">
-                    <p className="text-sm font-medium">Estado:</p>
-                    <p className={`text-lg inline-block ${getStatusClass(order.status)}`}>
-                        {order.status.replace('_', ' ').toUpperCase()}
-                    </p>
-                </div>
-
-                <Separator className="my-4" />
-
-                <h3 className="text-lg font-semibold mb-3">Productos Comprados ({order.items.length})</h3>
-                <div className="space-y-4">
-                    {order.items.map(item => (
-                        <div key={item.productId} className="flex items-center space-x-4 p-3 border rounded-md bg-muted/50">
-                            <div className="relative h-16 w-16 bg-white rounded-md overflow-hidden flex items-center justify-center">
-                                {item.imageUrl ? (
-                                    <Image src={item.imageUrl} alt={item.name} fill style={{ objectFit: 'contain'}} />
-                                ) : (
-                                    <span className="text-xs text-muted-foreground">No img</span>
-                                )}
-                            </div>
-                            <div className="flex-grow">
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                    {item.quantity} x Bs {item.pricePerUnit?.toFixed(2) || 'N/A'}
-                                </p>
-                            </div>
-                            <p className="font-semibold text-lg">Bs {item.subtotal?.toFixed(2) || 'N/A'}</p>
-                        </div>
-                    ))}
-                </div>
-
-                <Separator className="my-6" />
-
-                <div className="flex justify-end">
-                    <div className="text-right">
-                        <p className="text-muted-foreground">Subtotal:</p>
-                        <p className="text-muted-foreground">Envío:</p>
-                        <p className="text-xl font-bold mt-1">Total Pagado:</p>
-                    </div>
-                     <div className="text-right ml-6">
-                        <p className="text-muted-foreground">Bs {order.totalCost.toFixed(2)}</p>
-                        <p className="text-muted-foreground">Bs 0.00</p>
-                        <p className="text-xl font-bold text-primary mt-1">Bs {order.totalCost.toFixed(2)}</p>
-                    </div>
-                </div>
-
-            </CardContent>
-        </Card>
+      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+      </div>
     );
+  }
+
+  if (error || !order) {
+    return (
+      <div className="min-h-screen bg-neutral-100 flex flex-col items-center justify-center p-4">
+        <p className="text-red-500 mb-4">{error || 'Pedido no encontrado'}</p>
+        <Button variant="outline" onClick={() => router.back()}>
+          Volver
+        </Button>
+      </div>
+    );
+  }
+
+  const statusInfo = getStatusInfo(order.status);
+  const StatusIcon = statusInfo.icon;
+
+  return (
+    <div className="min-h-screen bg-neutral-100">
+      {/* Header */}
+      <div className="bg-white px-4 py-4 flex items-center justify-between shadow-sm">
+        <button
+          onClick={() => router.back()}
+          className="p-2 hover:bg-neutral-100 rounded-full transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5 text-neutral-700" />
+        </button>
+        <h1 className="text-lg font-semibold text-neutral-800">Pedido Realizado</h1>
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          disabled={order.status === 'completed' || order.status === 'cancelled'}
+          className="p-2 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Trash2 className="h-5 w-5 text-red-500" />
+        </button>
+      </div>
+
+      {/* Contenido */}
+      <div className="p-4 pb-48 space-y-4">
+        {/* Resumen del Carrito */}
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold text-neutral-800">Resumen del Carrito</h2>
+            <span className="text-sm text-amber-600 cursor-pointer">Editar</span>
+          </div>
+
+          <div className="space-y-3">
+            {order.items.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-neutral-100 flex-shrink-0">
+                  <Image
+                    src={getProductImage(item.product.name)}
+                    alt={item.product.name}
+                    width={40}
+                    height={40}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <span className="flex-1 text-neutral-700">{item.product.name}</span>
+                <span className="text-neutral-500 text-sm">x{item.quantity}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Dirección de Facturación */}
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold text-neutral-800">Dirección de Facturación</h2>
+            <span className="text-sm text-amber-600 cursor-pointer">Editar</span>
+          </div>
+
+          <div className="flex items-center gap-3 text-neutral-600">
+            <Phone className="h-4 w-4" />
+            <div>
+              <p className="text-sm font-medium">Número de teléfono</p>
+              <p className="text-sm text-neutral-500">{order.contactPhone || order.user?.phone || 'No especificado'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Dirección de Envío */}
+        <div 
+          className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:bg-neutral-50 transition-colors"
+          onClick={() => setShowAddressMap(true)}
+        >
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold text-neutral-800">Dirección de Envío</h2>
+            <span className="text-sm text-amber-600">Editar</span>
+          </div>
+
+          <div className="flex items-center gap-3 text-neutral-600">
+            <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <MapPin className="h-4 w-4 text-amber-600" />
+            </div>
+            <p className="text-sm flex-1">
+              {order.shippingAddress || 'Toca para agregar tu dirección'}
+            </p>
+          </div>
+        </div>
+
+        {/* Estado del Pedido */}
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <h2 className="font-semibold text-neutral-800 mb-3">Estado del pedido</h2>
+
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${statusInfo.bg}`}>
+            <StatusIcon className={`h-5 w-5 ${statusInfo.color}`} />
+            <div>
+              <p className={`font-medium ${statusInfo.color}`}>
+                {order.status === 'paid' ? 'Confirmado' : statusInfo.text}
+              </p>
+              {order.status === 'paid' && (
+                <p className="text-sm text-neutral-500">Tu pedido ha sido confirmado.</p>
+              )}
+              {order.status === 'pending' && (
+                <p className="text-sm text-neutral-500">Esperando confirmación de pago.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Resumen de Costos */}
+        <div className="bg-white rounded-xl p-4 shadow-sm space-y-2">
+          <div className="flex justify-between text-neutral-600">
+            <span>Subtotal</span>
+            <span>Bs {order.subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-neutral-600">
+            <span>Envío</span>
+            <span>Bs {order.shippingCost.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-neutral-600">
+            <span>Impuestos</span>
+            <span>Bs {order.taxAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between font-bold text-lg pt-2 border-t">
+            <span>Total</span>
+            <span>Bs {order.totalAmount.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer fijo con botones */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 space-y-3 pb-6">
+        <Button
+          onClick={handleDownloadQR}
+          disabled={isDownloadingQR}
+          className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-base rounded-full"
+        >
+          {isDownloadingQR ? (
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-5 w-5" />
+          )}
+          Descargar QR de pago
+        </Button>
+
+        <Button
+          onClick={() => router.push('/')}
+          variant="outline"
+          className="w-full h-12 border-neutral-300 text-neutral-700 hover:bg-neutral-50 font-medium rounded-full"
+        >
+          Regresar al inicio
+        </Button>
+      </div>
+
+      {/* Modal de confirmación de eliminación */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center">
+              <Trash2 className="h-6 w-6 text-neutral-500" />
+            </div>
+            <DialogTitle className="text-xl">Confirmar Eliminación de Pedido</DialogTitle>
+            <DialogDescription className="text-center">
+              Si el pedido aún no se ha completado, se cancelará. ¿Está seguro de que desea eliminar este pedido?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col space-y-2 sm:space-y-2">
+            <Button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="w-full bg-red-500 hover:bg-red-600 text-white"
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Sí, Eliminar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              className="w-full"
+            >
+              No, Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Mapa para Dirección */}
+      {showAddressMap && (
+        <Suspense fallback={
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-xl p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+            </div>
+          </div>
+        }>
+          <AddressMap
+            initialAddress={order.shippingAddress || ''}
+            onAddressSelect={handleAddressSelect}
+            onClose={() => setShowAddressMap(false)}
+          />
+        </Suspense>
+      )}
+    </div>
+  );
 }

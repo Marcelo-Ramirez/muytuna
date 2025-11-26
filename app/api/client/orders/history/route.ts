@@ -17,33 +17,39 @@ export async function GET() {
     }
 
     try {
-        // Consultamos SaleOrder (la cabecera confirmada) e incluimos OrderClient para el estado
-        const orders = await prisma.saleOrder.findMany({
+        // Consultamos las órdenes completadas o pagadas del usuario
+        const orders = await prisma.order.findMany({
             where: {
-                userId: clientId, // Filtra por el cliente logueado
+                userId: clientId,
+                status: { in: ['completed', 'paid'] }
             },
             include: {
-                orderClient: { // Para obtener el estado ('pendiente_verificacion', 'confirmado', 'entregado')
-                    select: { status: true, id: true } 
+                items: {
+                    include: {
+                        product: {
+                            select: { name: true, flavor: true, type: true }
+                        }
+                    }
                 },
-                _count: { // Contar cuántos productos tiene cada orden
-                    select: { saleProducts: true }
+                _count: {
+                    select: { items: true }
                 }
             },
             orderBy: {
-                createdAt: 'desc', // Ordenar por fecha, más recientes primero
+                createdAt: 'desc',
             }
         });
 
         // Mapeamos a un formato más simple para el frontend
         const formattedOrders = orders.map(order => ({
-            id: order.id, // ID de la Venta (SaleOrder)
-            orderClientId: order.orderClientId, // ID de la solicitud original
-            date: order.createdAt.toLocaleDateString('es-BO'), // Formato de fecha local
-            total: order.totalCostOrder,
-            // Usamos el estado de OrderClient para el seguimiento
-            status: order.orderClient?.status || 'desconocido', 
-            itemCount: order._count.saleProducts,
+            id: order.id,
+            orderNumber: order.orderNumber,
+            date: order.createdAt.toLocaleDateString('es-BO'),
+            total: order.totalAmount,
+            status: order.status,
+            itemCount: order._count.items,
+            channel: order.channel,
+            paidAt: order.paidAt?.toLocaleDateString('es-BO') || null
         }));
 
         return NextResponse.json({ orders: formattedOrders }, { status: 200 });

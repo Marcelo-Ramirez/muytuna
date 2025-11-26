@@ -1,74 +1,192 @@
-// app/api/orders/[orderId]/route.ts
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// app/api/client/orders/[orderId]/route.ts
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db'; // ⚡️ Asegúrate que sea /prisma si es tu alias
+import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth'; // ⚡️ Ajusta la ruta
+import { authOptions } from '@/lib/auth';
 
-export async function GET(request: Request, context: any) {
-    const session = await getServerSession(authOptions as any);
-    const { params } = context;
-    const { orderId } = params as { orderId: string };
+interface RouteContext {
+  params: Promise<{ orderId: string }>;
+}
 
-    // ... (Verificaciones de sesión y IDs) ...
-    if (!session || !(session as any).user || !(session as any).user.id) {
-        return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-    const clientId = parseInt((session as any).user.id, 10);
-    const requestedOrderId = parseInt(orderId, 10); // ID de OrderClient
-    if (isNaN(clientId) || isNaN(requestedOrderId)) {
-        return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
-    }
-    // ...
+// GET - Obtener una orden específica del usuario
+export async function GET(req: Request, context: RouteContext) {
+  const session = await getServerSession(authOptions);
 
-    try {
-        const saleOrder = await prisma.saleOrder.findUnique({
-            where: { 
-                orderClientId: requestedOrderId,
-                userId: clientId 
-            },
-            include: {
-                orderClient: { select: { status: true, createdAt: true } },
-                saleProducts: { 
-                    include: {
-                        product: { 
-                            // ✅ CORRECCIÓN: Seleccionar también pricePerUnit
-                            select: { name: true, imageUrl: true, pricePerUnit: true } 
-                        }
-                    }
-                }
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  const userId = parseInt(session.user.id, 10);
+  const { orderId } = await context.params;
+  const orderIdNum = parseInt(orderId, 10);
+
+  if (isNaN(orderIdNum)) {
+    return NextResponse.json({ error: 'ID de orden inválido' }, { status: 400 });
+  }
+
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderIdNum,
+        userId: userId
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true, imageUrl: true, flavor: true }
             }
-        });
-
-        if (!saleOrder) {
-            return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
+          }
+        },
+        user: {
+          select: { name: true, phone: true, email: true }
         }
+      }
+    });
 
-        // Formatear la respuesta
-        const orderDetails = {
-            id: saleOrder.id,
-            orderClientId: saleOrder.orderClientId,
-            date: saleOrder.orderClient?.createdAt.toLocaleDateString('es-BO'),
-            status: saleOrder.orderClient?.status || 'desconocido',
-            totalCost: saleOrder.totalCostOrder,
-            items: saleOrder.saleProducts.map(sp => {
-                // ✅ CORRECCIÓN: Acceder al precio a través del producto relacionado
-                const unitPrice = sp.product?.pricePerUnit || 0; 
-                return {
-                    productId: sp.productId,
-                    name: sp.product?.name || 'Producto no disponible',
-                    imageUrl: sp.product?.imageUrl,
-                    quantity: sp.quantity,
-                    pricePerUnit: unitPrice, // Usar el precio obtenido
-                    subtotal: sp.quantity * unitPrice // Calcular subtotal
-                };
-            })
-        };
-
-        return NextResponse.json({ order: orderDetails }, { status: 200 });
-
-    } catch (error) {
-        console.error(`Error al obtener detalle del pedido ${orderId}:`, error);
-        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+    if (!order) {
+      return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 });
     }
+
+    return NextResponse.json({ success: true, order });
+  } catch (error) {
+    console.error('Error al obtener orden:', error);
+    return NextResponse.json({ error: 'Error al obtener orden' }, { status: 500 });
+  }
+}
+
+// PATCH - Actualizar estado de la orden (pagar/confirmar pago)
+export async function PATCH(req: Request, context: RouteContext) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  const userId = parseInt(session.user.id, 10);
+  const { orderId } = await context.params;
+  const orderIdNum = parseInt(orderId, 10);
+
+  if (isNaN(orderIdNum)) {
+    return NextResponse.json({ error: 'ID de orden inválido' }, { status: 400 });
+  }
+
+  try {
+    const body = await req.json();
+    const { action, paymentMethod, shippingAddress, contactPhone } = body;
+
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        id: orderIdNum,
+        userId: userId
+      }
+    });
+
+    if (!existingOrder) {
+      return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 });
+    }
+
+    let updateData: Record<string, unknown> = {};
+
+    switch (action) {
+      case 'confirm_payment':
+        if (existingOrder.status !== 'pending') {
+          return NextResponse.json({ 
+            error: 'Solo se pueden confirmar pagos de órdenes pendientes' 
+          }, { status: 400 });
+        }
+        updateData = {
+          status: 'paid',
+          paymentMethod: paymentMethod || 'QR',
+          paidAt: new Date()
+        };
+        break;
+
+      case 'update_shipping':
+        updateData = {
+          shippingAddress: shippingAddress || existingOrder.shippingAddress,
+          contactPhone: contactPhone || existingOrder.contactPhone
+        };
+        break;
+
+      default:
+        return NextResponse.json({ error: 'Acción no válida' }, { status: 400 });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderIdNum },
+      data: updateData,
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true, imageUrl: true }
+            }
+          }
+        }
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      order: updatedOrder,
+      message: action === 'confirm_payment' 
+        ? 'Pago confirmado exitosamente' 
+        : 'Orden actualizada'
+    });
+
+  } catch (error) {
+    console.error('Error al actualizar orden:', error);
+    return NextResponse.json({ error: 'Error al actualizar orden' }, { status: 500 });
+  }
+}
+
+// DELETE - Cancelar/eliminar orden (solo si está pendiente)
+export async function DELETE(req: Request, context: RouteContext) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  const userId = parseInt(session.user.id, 10);
+  const { orderId } = await context.params;
+  const orderIdNum = parseInt(orderId, 10);
+
+  if (isNaN(orderIdNum)) {
+    return NextResponse.json({ error: 'ID de orden inválido' }, { status: 400 });
+  }
+
+  try {
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        id: orderIdNum,
+        userId: userId
+      }
+    });
+
+    if (!existingOrder) {
+      return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 });
+    }
+
+    if (existingOrder.status === 'completed') {
+      return NextResponse.json({ 
+        error: 'No se pueden eliminar órdenes completadas' 
+      }, { status: 400 });
+    }
+
+    await prisma.order.update({
+      where: { id: orderIdNum },
+      data: { status: 'cancelled' }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Orden cancelada exitosamente'
+    });
+
+  } catch (error) {
+    console.error('Error al cancelar orden:', error);
+    return NextResponse.json({ error: 'Error al cancelar orden' }, { status: 500 });
+  }
 }

@@ -54,25 +54,30 @@ export async function GET(req: Request) {
         }
         console.log('API month-data: normalized rawMaterialCost by taking absolute quantity for salida movements');
 
-    // 2) Sales revenue and per-product breakdown for the month
-    const sales = await prisma.saleProduct.findMany({
-      where: { createdAt: { gte: start, lte: end } },
+    // 2) Sales revenue and per-product breakdown for the month using Order/OrderItem
+    const orderItems = await prisma.orderItem.findMany({
+      where: { 
+        createdAt: { gte: start, lte: end },
+        order: {
+          status: { in: ['completed', 'paid'] }
+        }
+      },
       include: { product: true }
     });
-  console.log('API month-data: sales found', sales.length);
+  console.log('API month-data: orderItems found', orderItems.length);
 
   let salesRevenue = 0;
   const byProduct: Record<string, ProductSummary> = {};
 
-    for (const s of sales) {
-      const price = s.product?.pricePerUnit ?? 0;
-      const rev = (s.quantity || 0) * price;
+    for (const item of orderItems) {
+      const price = item.product?.pricePerUnit ?? item.unitPrice;
+      const rev = item.subtotal;
       salesRevenue += rev;
-      const key = String(s.productId);
+      const key = String(item.productId);
       if (!byProduct[key]) {
-        byProduct[key] = { productId: s.productId, name: s.product?.name ?? 'N/A', quantity: 0, pricePerUnit: price, revenue: 0 };
+        byProduct[key] = { productId: item.productId, name: item.product?.name ?? 'N/A', quantity: 0, pricePerUnit: price, revenue: 0 };
       }
-      byProduct[key].quantity += s.quantity || 0;
+      byProduct[key].quantity += item.quantity || 0;
       byProduct[key].revenue += rev;
     }
 

@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
 
 function startOfDay(date = new Date()) {
   const d = new Date(date);
@@ -26,11 +24,18 @@ export async function GET(req: Request) {
 
     if (productId) {
       const id = Number(productId);
-      const agg = await prisma.saleProduct.aggregate({
-        _sum: { quantity: true },
-        where: { productId: id, createdAt: { gte: start, lte: end } }
+      // Sum quantity from OrderItem for completed/paid orders
+      const items = await prisma.orderItem.findMany({
+        where: { 
+          productId: id, 
+          createdAt: { gte: start, lte: end },
+          order: {
+            status: { in: ['completed', 'paid'] }
+          }
+        },
+        select: { quantity: true }
       });
-      const total = agg._sum.quantity || 0;
+      const total = items.reduce((sum, item) => sum + item.quantity, 0);
       return NextResponse.json({ total });
     }
 
@@ -39,24 +44,34 @@ export async function GET(req: Request) {
       const prods = await prisma.product.findMany({ where: { type }, select: { id: true } });
       const ids = prods.map(p => p.id);
       if (ids.length === 0) return NextResponse.json({ total: 0 });
-      const agg = await prisma.saleProduct.aggregate({
-        _sum: { quantity: true },
-        where: { productId: { in: ids }, createdAt: { gte: start, lte: end } }
+      
+      const items = await prisma.orderItem.findMany({
+        where: { 
+          productId: { in: ids }, 
+          createdAt: { gte: start, lte: end },
+          order: {
+            status: { in: ['completed', 'paid'] }
+          }
+        },
+        select: { quantity: true }
       });
-      const total = agg._sum.quantity || 0;
+      const total = items.reduce((sum, item) => sum + item.quantity, 0);
       return NextResponse.json({ total });
     }
 
-    // If no filters provided, return total across all saleProduct records for today
-    const aggAll = await prisma.saleProduct.aggregate({
-      _sum: { quantity: true },
-      where: { createdAt: { gte: start, lte: end } }
+    // If no filters provided, return total across all OrderItem records for today
+    const items = await prisma.orderItem.findMany({
+      where: { 
+        createdAt: { gte: start, lte: end },
+        order: {
+          status: { in: ['completed', 'paid'] }
+        }
+      },
+      select: { quantity: true }
     });
-    const totalAll = aggAll._sum.quantity || 0;
+    const totalAll = items.reduce((sum, item) => sum + item.quantity, 0);
     return NextResponse.json({ total: totalAll });
   } catch {
     return NextResponse.json({ error: 'Error calculating sales today' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

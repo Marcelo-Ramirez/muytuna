@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
-// POST: Cambia el estado del pedido a 'reserv'
+// POST: Cambia el estado del pedido a 'paid' (reservado/pagado)
 export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
@@ -13,18 +13,57 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { orderClientId } = await req.json();
+        const { orderId } = await req.json();
 
-        if (!orderClientId) {
+        if (!orderId) {
             return NextResponse.json({ success: false, error: "ID de pedido es obligatorio" }, { status: 400 });
         }
 
-        const numericOrderClientId = Number(orderClientId);
+        const numericOrderId = Number(orderId);
 
-        // 1. Actualizar el estado del OrderClient a 'reserv'
-        const updatedOrder = await prisma.orderClient.update({
-            where: { id: numericOrderClientId, status: { not: 'sale' } }, // Solo si no está ya vendido
-            data: { status: 'reserv' },
+        // 1. Verificar que el pedido existe y no está ya completado
+        const existingOrder = await prisma.order.findUnique({
+            where: { id: numericOrderId }
+        });
+
+        if (!existingOrder) {
+            return NextResponse.json({ success: false, error: "Pedido no encontrado" }, { status: 404 });
+        }
+
+        if (existingOrder.status === 'completed') {
+            return NextResponse.json({ success: false, error: "El pedido ya está completado" }, { status: 400 });
+        }
+
+        if (existingOrder.status === 'cancelled') {
+            return NextResponse.json({ success: false, error: "No se puede reservar un pedido cancelado" }, { status: 400 });
+        }
+
+        // 2. Actualizar el estado del Order a 'paid' (reservado)
+        const updatedOrder = await prisma.order.update({
+            where: { id: numericOrderId },
+            data: { 
+                status: 'paid',
+                paidAt: new Date()
+            },
+            include: {
+                items: {
+                    include: {
+                        product: {
+                            select: {
+                                name: true,
+                                type: true,
+                                flavor: true
+                            }
+                        }
+                    }
+                },
+                user: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
+            }
         });
 
         return NextResponse.json({ success: true, order: updatedOrder, message: "Pedido reservado con éxito." });

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import { getServerSession, Session } from 'next-auth';
-import { OrderItem } from '@/types/inventory'; 
 
-const prisma = new PrismaClient();
 type ExtendedSession = Session & { 
     user?: { id: string; role: string } & Session['user'];
 };
+
+interface CartItem {
+  productId: number;
+  quantity: number;
+}
 
 // POST - Crear nuevo pedido
 export async function POST(request: NextRequest) {
@@ -21,25 +24,62 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
-    const { items } = data as { items: OrderItem[] }; 
+    const { items } = data as { items: CartItem[] }; 
 
     const clientId = Number(session.user.id);
-    const orders = await Promise.all(
-      items.map(async (item) => { 
-        return await prisma.orderClient.create({
-          data: {
-            clientId,
-            productId: item.productId,
-            quantity: item.quantity,
-            status: 'pendiente'
+
+    // Obtener productos para calcular precios
+    const productIds = items.map(item => item.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } }
+    });
+
+    // Crear los items de la orden
+    const orderItems = items.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (!product) throw new Error(`Producto ${item.productId} no encontrado`);
+      
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: product.pricePerUnit,
+        subtotal: product.pricePerUnit * item.quantity
+      };
+    });
+
+    const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+    const order = await prisma.order.create({
+      data: {
+        userId: clientId,
+        channel: 'ONLINE',
+        status: 'pending',
+        subtotal,
+        totalAmount: subtotal,
+        orderNumber: `ORD-${Date.now()}`,
+        items: {
+          create: orderItems
+        }
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                flavor: true,
+                pricePerUnit: true,
+                imageUrl: true
+              }
+            }
           }
-        });
-      })
-    );
+        }
+      }
+    });
 
     return NextResponse.json({ 
       message: 'Pedido creado exitosamente',
-      orders 
+      order 
     });
   } catch (error) {
     console.error('Error creating order:', error);
@@ -53,7 +93,6 @@ export async function POST(request: NextRequest) {
 // GET - Obtener pedidos del cliente
 export async function GET() {
   try {
-    // 💡 Aserción de tipo para la sesión
     const session = await getServerSession() as ExtendedSession;
     
     if (!session?.user || session.user.role !== 'cliente') {
@@ -64,15 +103,19 @@ export async function GET() {
     }
 
     const clientId = Number(session.user.id);
-    const orders = await prisma.orderClient.findMany({
-      where: { clientId },
+    const orders = await prisma.order.findMany({
+      where: { userId: clientId },
       include: {
-        product: {
-          select: {
-            name: true,
-            flavor: true,
-            pricePerUnit: true,
-            imageUrl: true
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                flavor: true,
+                pricePerUnit: true,
+                imageUrl: true
+              }
+            }
           }
         }
       },

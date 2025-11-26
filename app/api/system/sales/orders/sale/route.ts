@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getServerSession } from "next-auth"; // Ajusta si tu proyecto usa otro import
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
+// POST: Confirmar una venta (cambiar estado a 'completed')
 export async function POST(req: Request) {
   // 1. Obtener la sesión y validar el usuario
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   if (!session || !session.user || !session.user.id) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
@@ -16,103 +18,88 @@ export async function POST(req: Request) {
 
   // 2. Obtener y validar el body
   const body = await req.json();
-  const orderClientIdRaw = body.orderClientId ?? body.orderClientIdRaw ?? body.orderClient;
-  const numericOrderClientId = Number(orderClientIdRaw);
+  const orderId = Number(body.orderId);
 
-  if (isNaN(numericOrderClientId)) {
+  if (isNaN(orderId)) {
     return NextResponse.json({ error: "ID de pedido inválido" }, { status: 400 });
   }
 
   try {
     // Ejecutar la lógica de venta dentro de una Transacción
     const saleResult = await prisma.$transaction(async (tx) => {
-      // A. Obtener el pedido básico (sin assumes sobre includes)
-      const orderClient = await tx.orderClient.findUnique({
-        where: { id: numericOrderClientId },
-        // seleccion mínima para evitar errores de select desconocidos
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          quantity: true,
-          productId: true,
-          clientId: true,
-        },
+      // A. Obtener el pedido con sus items
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            include: {
+              product: true
+            }
+          }
+        }
       });
 
-      if (!orderClient) {
+      if (!order) {
         throw new Error("Pedido no encontrado.");
       }
 
-      // B. Verificar si ya existe una venta asociada al orderClient
-      const existingSale = await tx.saleOrder.findFirst({
-        where: { orderClientId: numericOrderClientId },
-        select: { id: true },
-      });
-      if (existingSale) {
-        throw new Error("P2002: Este pedido ya ha sido confirmado como venta.");
+      if (order.status === 'completed') {
+        throw new Error("Este pedido ya ha sido completado.");
       }
 
-      // C. Obtener el producto asociado por productId
-      const product = await tx.product.findUnique({
-        where: { id: orderClient.productId },
-      });
-      if (!product) {
-        throw new Error("Producto asociado no encontrado.");
+      if (order.status === 'cancelled') {
+        throw new Error("No se puede completar un pedido cancelado.");
       }
 
-      // D. Determinar campo de stock y precio en el producto (fallbacks seguros)
-      const productAny = product as any;
-      const stockValue = Number(
-        productAny.currentQuantity ?? productAny.stock ?? productAny.remaining ?? productAny.quantity ?? 0
-      );
-      const unitPrice = Number(productAny.pricePerUnit ?? productAny.unitPrice ?? productAny.price ?? 0);
-
-      if (stockValue < orderClient.quantity) {
-        throw new Error("Verifique el stock. Cantidad solicitada supera el stock disponible.");
+      // B. Verificar stock de todos los productos
+      for (const item of order.items) {
+        if (item.product.currentQuantity < item.quantity) {
+          throw new Error(`Stock insuficiente para ${item.product.name}. Disponible: ${item.product.currentQuantity}, Solicitado: ${item.quantity}`);
+        }
       }
 
-      // E. Crear el registro SaleOrder (asegurando userId numérico)
-      const saleOrder = await tx.saleOrder.create({
-        data: {
-          userId: numericUserId,
-          orderClientId: numericOrderClientId,
-          totalCostOrder: unitPrice * orderClient.quantity,
+      // C. Reducir el stock de cada producto
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { 
+            currentQuantity: { decrement: item.quantity } 
+          },
+        });
+      }
+
+      // D. Actualizar el estado del pedido a 'completed'
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { 
+          status: "completed",
+          paidAt: order.paidAt || new Date() // Si no estaba pagado, marcar como pagado ahora
         },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  name: true,
+                  type: true,
+                  flavor: true
+                }
+              }
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
       });
 
-      // F. Actualizar el estado del OrderClient a 'sale'
-      await tx.orderClient.update({
-        where: { id: numericOrderClientId },
-        data: { status: "sale" },
-      });
-
-      // G. Reducir el stock del producto (usar campo determinado dinámicamente)
-      const stockFieldName =
-        productAny.currentQuantity !== undefined
-          ? "currentQuantity"
-          : productAny.stock !== undefined
-          ? "stock"
-          : productAny.remaining !== undefined
-          ? "remaining"
-          : productAny.quantity !== undefined
-          ? "quantity"
-          : null;
-
-      if (!stockFieldName) {
-        throw new Error("No se pudo determinar el campo de stock en Product.");
-      }
-
-      // Usar cast any para la actualización dinámica del campo de stock
-      await tx.product.update({
-        where: { id: orderClient.productId },
-        data: ({ [stockFieldName]: { decrement: orderClient.quantity } } as any),
-      });
-
-      return saleOrder;
+      return updatedOrder;
     });
 
-    return NextResponse.json({ success: true, saleOrder: saleResult });
+    return NextResponse.json({ success: true, order: saleResult });
   } catch (error) {
     console.error("Error en la venta:", error);
     const errorMessage = error instanceof Error ? error.message : "Error desconocido al procesar la venta.";

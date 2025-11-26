@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { OrderItem } from '@/types/inventory'; 
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
 
 // GET - Obtener todos los productos públicos
 export async function GET() {
@@ -32,10 +29,15 @@ export async function GET() {
   }
 }
 
+interface CartItem {
+  productId: number;
+  quantity: number;
+}
+
 // POST - Crear nuevo pedido (desde catálogo público)
 export async function POST(request: NextRequest) {
   try {
-    const data: { clientId: number, items: OrderItem[] } = await request.json(); 
+    const data: { clientId: number, items: CartItem[] } = await request.json(); 
     const { clientId, items } = data; 
 
     // Validar que el cliente existe
@@ -50,23 +52,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Crear pedidos para cada producto
-    const orders = await Promise.all(
-      items.map(async (item) => { 
-        return await prisma.orderClient.create({
-          data: {
-            clientId: clientId,
-            productId: item.productId,
-            quantity: item.quantity,
-            status: 'pendiente'
+    // Obtener productos para calcular precios
+    const productIds = items.map(item => item.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } }
+    });
+
+    // Crear la orden con sus items
+    const orderItems = items.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (!product) throw new Error(`Producto ${item.productId} no encontrado`);
+      
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: product.pricePerUnit,
+        subtotal: product.pricePerUnit * item.quantity
+      };
+    });
+
+    const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+    const order = await prisma.order.create({
+      data: {
+        userId: clientId,
+        channel: 'ONLINE',
+        status: 'pending',
+        subtotal,
+        totalAmount: subtotal,
+        orderNumber: `ORD-${Date.now()}`,
+        items: {
+          create: orderItems
+        }
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                flavor: true,
+                pricePerUnit: true,
+                imageUrl: true
+              }
+            }
           }
-        });
-      })
-    );
+        }
+      }
+    });
 
     return NextResponse.json({ 
       message: 'Pedido creado exitosamente',
-      orders 
+      order 
     });
   } catch (error) {
     console.error('Error creating order:', error);

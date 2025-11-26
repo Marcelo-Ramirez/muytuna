@@ -29,11 +29,10 @@ model User {
 
   // Relaciones
   inventoryMovements InventoryMovement[]
-  saleOrders         SaleOrder[]
   productMovements   ProductMovement[]
-  saleProducts       SaleProduct[]
   accounts           Account[]
   sessions           Session[]
+  orders             Order[]
 
   @@map("Users")
 }
@@ -149,58 +148,74 @@ model Product {
   updatedAt       DateTime @updatedAt @map("updatedAt")
   
   // Relaciones
-  orderClients    OrderClient[]
-  saleProducts    SaleProduct[]
+  orderItems      OrderItem[]
   productMovements ProductMovement[]
   batches         ProductBatch[]
 
   @@map("Products")
 }
 
-model OrderClient {
+// ============================================
+// PEDIDOS / VENTAS (estructura simplificada)
+// ============================================
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  
+  // Usuario opcional: null = venta en persona, valor = venta online
+  userId      Int?        @map("user_id")
+  
+  // Canal y estado
+  channel     String      @default("IN_PERSON")  // IN_PERSON | ONLINE
+  status      String      @default("pending")    // pending | paid | completed | cancelled
+  
+  // Información de contacto y envío (para pedidos online)
+  contactPhone    String?     @map("contact_phone")
+  shippingAddress String?     @map("shipping_address")
+  paymentMethod   String?     @map("payment_method")  // QR | CASH | TRANSFER
+  
+  // Costos
+  subtotal    Float       @default(0)
+  shippingCost Float      @default(0) @map("shipping_cost")
+  taxAmount   Float       @default(0) @map("tax_amount")
+  totalAmount Float       @default(0) @map("total_amount")
+  
+  // Número de orden para mostrar al cliente
+  orderNumber String?     @unique @map("order_number")
+  
+  // Timestamps
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  paidAt      DateTime?   @map("paid_at")
+  
+  // Relaciones
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items       OrderItem[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([channel])
+  @@map("Orders")
+}
+
+model OrderItem {
   id          Int      @id @default(autoincrement())
-  clientId    Int      @map("client_id")
+  orderId     Int      @map("order_id")
   productId   Int      @map("product_id")
+  
   quantity    Float
-  status      String
-  createdAt   DateTime @default(now()) @map("createdAt")
-  saleOrder   SaleOrder?
-
+  unitPrice   Float    @map("unit_price")    // Precio al momento de la compra (snapshot)
+  subtotal    Float                          // quantity * unitPrice
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  
   // Relaciones
-  product Product @relation(fields: [productId], references: [id])
-
-  @@map("Order_clients")
-}
-
-model SaleOrder {
-  id             Int      @id @default(autoincrement())
-  userId         Int      @map("user_id")
-  orderClientId  Int      @unique @map("order_client_id")
-  totalCostOrder Float    @map("totalCostOrder")
-  createdAt      DateTime @default(now()) @map("createdAt")
-  saleProducts   SaleProduct[]
-
-  // Relaciones
-  user User @relation(fields: [userId], references: [id])
-  orderClient OrderClient @relation(fields: [orderClientId], references: [id])
-
-  @@map("Sale_orders")
-}
-
-model SaleProduct {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  productId Int      @map("product_id")
-  quantity  Float
-  createdAt DateTime @default(now()) @map("createdAt")
-  saleOrderId Int    @map("sale_order_id")
-
-  // Relaciones
-  user        User     @relation(fields: [userId], references: [id])
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product     Product  @relation(fields: [productId], references: [id])
-  saleOrder   SaleOrder @relation(fields: [saleOrderId], references: [id])
-
-  @@map("Sale_products")
+  
+  @@index([orderId])
+  @@index([productId])
+  @@map("Order_items")
 }
 
 model ProductMovement {

@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, Calendar } from 'lucide-react'; 
+import { Loader2, Calendar, Package } from 'lucide-react'; 
 import { toast } from 'sonner';
 
 // Importa componentes Shadcn UI
@@ -12,59 +12,77 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
-// --- Tipos e Interfaces (ADAPTADA al backend corregido) ---
+// --- Tipos e Interfaces ---
 interface ProductDetails {
+    id: number;
     name: string;
     type: string;
     flavor: string;
     pricePerUnit: number;
+    imageUrl?: string;
 }
 
-// Interfaz que refleja la estructura anidada de la respuesta del backend
-interface OrderClient {
+interface OrderItemType {
     id: number;
-    clientId: number;
+    productId: number;
     quantity: number;
-    status: 'reserv' | 'sale' | 'pendiente' | string; // Asegurar que TypeScript sepa los estados
-    createdAt: string;
+    unitPrice: number;
+    subtotal: number;
     product: ProductDetails;
-    saleOrder?: { // La venta final (opcional, solo existe si status='sale')
-        totalCostOrder: number;
-        user: {
-            id: number;
-            name: string;
-        };
+}
+
+interface Order {
+    id: number;
+    userId: number | null;
+    channel: string;
+    status: string;
+    orderNumber: string | null;
+    subtotal: number;
+    shippingCost: number;
+    taxAmount: number;
+    totalAmount: number;
+    contactPhone: string | null;
+    shippingAddress: string | null;
+    paymentMethod: string | null;
+    createdAt: string;
+    paidAt: string | null;
+    items: OrderItemType[];
+    user: {
+        id: number;
+        name: string;
+        userName: string;
     } | null;
 }
 
-// --- HELPERS (Mantenidos) ---
+// --- HELPERS ---
 const getStatusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
-        case 'sale': return 'default'; // Vendido (verde/azul)
-        case 'reserv': return 'secondary'; // Reservado (gris/azul claro)
-        case 'pendiente': return 'outline';
+        case 'completed': return 'default';
+        case 'paid': return 'secondary';
+        case 'pending': return 'outline';
+        case 'cancelled': return 'destructive';
         default: return 'outline';
     }
 };
 
 const getStatusText = (status: string): string => {
     switch (status) {
-        case 'sale': return 'VENDIDO';
-        case 'reserv': return 'RESERVADO';
-        case 'pendiente': return 'PENDIENTE';
+        case 'completed': return 'COMPLETADO';
+        case 'paid': return 'PAGADO';
+        case 'pending': return 'PENDIENTE';
+        case 'cancelled': return 'CANCELADO';
         default: return status.toUpperCase();
     }
 };
 
 const formatPrice = (price: number) => {
-    // Usamos 'es-BO' para formato local y solo dígitos.
     return price.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 
 // --- COMPONENTE PRINCIPAL ---
 export default function SalesOrdersPage() {
-    const [orders, setOrders] = useState<OrderClient[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -101,20 +119,19 @@ export default function SalesOrdersPage() {
             const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderClientId: orderId })
+                body: JSON.stringify({ orderId })
             });
 
             const data = await res.json();
 
             if (!res.ok) {
-                // Mensaje de error más detallado
                 const defaultError = `Error al procesar la ${actionType === 'reserv' ? 'reserva' : 'venta'}`;
                 const specificError = data.error || defaultError;
                 throw new Error(specificError);
             }
 
-            toast.success(`Pedido ${actionType === 'reserv' ? 'reservado' : 'vendido'} con éxito.`);
-            await fetchOrders(); // Recargar la lista
+            toast.success(`Pedido ${actionType === 'reserv' ? 'pagado/reservado' : 'completado'} con éxito.`);
+            await fetchOrders();
             
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Error de red o desconocido.");
@@ -126,8 +143,8 @@ export default function SalesOrdersPage() {
 
     // --- Lógica de Filtrado ---
     const filteredOrders = useMemo(() => {
-    return orders.filter(order => filter === 'all' || !filter || order.status === filter);
-}, [orders, filter]);
+        return orders.filter(order => filter === 'all' || !filter || order.status === filter);
+    }, [orders, filter]);
 
 
     // --- JSX PRINCIPAL ---
@@ -140,20 +157,18 @@ export default function SalesOrdersPage() {
                 
                 {/* Filtro de Estado */}
                 <div className="w-full sm:w-auto min-w-[150px]">
-                <Select value={filter} onValueChange={setFilter}>
-                    <SelectTrigger className="w-full">
-                        {/* Muestra un placeholder o el valor seleccionado. */}
-                        <SelectValue placeholder="Filtrar por estado" /> 
-                    </SelectTrigger>
-                    <SelectContent>
-                        {/* Usamos 'all' o 'todos' como valor, que NO es la cadena vacía. */}
-                        <SelectItem value="all">Todos</SelectItem> 
-                        {/* Opciones reales del filtro */}
-                        <SelectItem value="reserv">Reservados</SelectItem>
-                        <SelectItem value="sale">Vendidos</SelectItem>
-                        <SelectItem value="pendiente">Pendientes</SelectItem>
-                    </SelectContent>
-                </Select>
+                    <Select value={filter} onValueChange={setFilter}>
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Filtrar por estado" /> 
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todos</SelectItem> 
+                            <SelectItem value="pending">Pendientes</SelectItem>
+                            <SelectItem value="paid">Pagados</SelectItem>
+                            <SelectItem value="completed">Completados</SelectItem>
+                            <SelectItem value="cancelled">Cancelados</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
             
@@ -169,13 +184,11 @@ export default function SalesOrdersPage() {
                     
                     {filteredOrders.length > 0 ? (
                         filteredOrders.map((order) => {
-                            const totalCost = order.quantity * order.product.pricePerUnit;
-                            const isSold = order.status === 'sale';
-                            const isReserved = order.status === 'reserv';
+                            const isCompleted = order.status === 'completed';
+                            const isPaid = order.status === 'paid';
+                            const isCancelled = order.status === 'cancelled';
                             const statusText = getStatusText(order.status);
-                            
-                            // 🐞 CORRECCIÓN DE ERROR: Acceso seguro al nombre del vendedor
-                            const salesmanName = order.saleOrder?.user?.name;
+                            const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
 
                             return (
                                 <Card 
@@ -185,17 +198,22 @@ export default function SalesOrdersPage() {
                                     <CardContent className="p-4 sm:p-6">
                                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                             
-                                            {/* Producto y Cantidad */}
+                                            {/* Info del Pedido */}
                                             <div className="flex flex-col gap-1">
                                                 <p className="font-bold text-xl text-foreground">
-                                                    {order.product.name}
+                                                    {order.orderNumber || `Pedido #${order.id}`}
                                                 </p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {order.product.type} de {order.product.flavor}
-                                                </p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Cantidad: {order.quantity} unidades
-                                                </p>
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <Package className="h-4 w-4" />
+                                                    <span>{totalItems} productos</span>
+                                                    <span className="text-xs">•</span>
+                                                    <span className="capitalize">{order.channel === 'ONLINE' ? '🌐 Online' : '🏪 En persona'}</span>
+                                                </div>
+                                                {order.user && (
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Cliente: {order.user.name}
+                                                    </p>
+                                                )}
                                             </div>
                                             
                                             {/* Estado y Acciones */}
@@ -205,51 +223,72 @@ export default function SalesOrdersPage() {
                                                     {statusText}
                                                 </Badge>
 
-                                                {/* Botón Confirmar Venta (si no está vendido) */}
-                                                {!isSold && (
+                                                {/* Botón Confirmar Venta (completar - si está pagado) */}
+                                                {isPaid && !isCompleted && (
                                                     <Button 
                                                         onClick={() => handleAction(order.id, 'sale')}
                                                         disabled={isProcessing}
                                                         size="sm"
                                                         className="bg-green-600 hover:bg-green-700"
                                                     >
-                                                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Confirmar Venta'}
+                                                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Completar Venta'}
                                                     </Button>
                                                 )}
                                                 
-                                                {/* Botón Reservar (solo si está pendiente) */}
-                                                {!isSold && !isReserved && (
-                                                    <Button 
-                                                        onClick={() => handleAction(order.id, 'reserv')}
-                                                        disabled={isProcessing}
-                                                        variant="secondary"
-                                                        size="sm"
-                                                    >
-                                                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Reservar'}
-                                                    </Button>
+                                                {/* Botón Marcar como Pagado (si está pendiente) */}
+                                                {order.status === 'pending' && (
+                                                    <>
+                                                        <Button 
+                                                            onClick={() => handleAction(order.id, 'reserv')}
+                                                            disabled={isProcessing}
+                                                            variant="secondary"
+                                                            size="sm"
+                                                        >
+                                                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Marcar Pagado'}
+                                                        </Button>
+                                                        <Button 
+                                                            onClick={() => handleAction(order.id, 'sale')}
+                                                            disabled={isProcessing}
+                                                            size="sm"
+                                                            className="bg-green-600 hover:bg-green-700"
+                                                        >
+                                                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Completar Venta'}
+                                                        </Button>
+                                                    </>
                                                 )}
-
                                             </div>
-
+                                        </div>
+                                        
+                                        {/* Items del pedido */}
+                                        <div className="mt-4 space-y-2">
+                                            {order.items.slice(0, 3).map((item) => (
+                                                <div key={item.id} className="flex justify-between items-center text-sm">
+                                                    <span className="text-muted-foreground">
+                                                        {item.product.name} ({item.product.type} - {item.product.flavor})
+                                                    </span>
+                                                    <span>
+                                                        {item.quantity} x Bs {formatPrice(item.unitPrice)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                            {order.items.length > 3 && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    + {order.items.length - 3} productos más...
+                                                </p>
+                                            )}
                                         </div>
                                         
                                         <Separator className="my-4" />
 
                                         {/* Footer - Costo y Fecha */}
                                         <div className="flex justify-between items-center text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-bold text-lg text-primary">
-                                                    Total: Bs {formatPrice(totalCost)}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    (x Bs {formatPrice(order.product.pricePerUnit)})
-                                                </p>
-                                            </div>
+                                            <p className="font-bold text-lg text-primary">
+                                                Total: Bs {formatPrice(order.totalAmount)}
+                                            </p>
                                             
-                                            {/* 🐞 CORRECCIÓN: Usar la variable segura */}
-                                            {salesmanName && (
+                                            {order.paidAt && (
                                                 <div className="text-xs text-muted-foreground">
-                                                    Vendedor: {salesmanName}
+                                                    Pagado: {new Date(order.paidAt).toLocaleDateString()}
                                                 </div>
                                             )}
 

@@ -34,17 +34,27 @@ async function computeMonthData(year: number, month: number) {
   }
     console.log('computeMonthData: normalized rawMaterialCost using absolute quantities for salida movements');
 
-  const sales = await prisma.saleProduct.findMany({ where: { createdAt: { gte: start, lte: end } }, include: { product: true } });
-  console.log('server computeMonthData: sales', sales.length, 'for', year, month);
+  // Use OrderItem from completed/paid orders instead of saleProduct
+  const orderItems = await prisma.orderItem.findMany({ 
+    where: { 
+      createdAt: { gte: start, lte: end },
+      order: {
+        status: { in: ['completed', 'paid'] }
+      }
+    }, 
+    include: { product: true } 
+  });
+  console.log('server computeMonthData: orderItems', orderItems.length, 'for', year, month);
+  
   let salesRevenue = 0;
   const byProduct: Record<string, ProductSummary> = {};
-  for (const s of sales) {
-    const price = s.product?.pricePerUnit ?? 0;
-    const rev = (s.quantity || 0) * price;
+  for (const item of orderItems) {
+    const price = item.product?.pricePerUnit ?? item.unitPrice;
+    const rev = item.subtotal;
     salesRevenue += rev;
-    const key = String(s.productId);
-    if (!byProduct[key]) byProduct[key] = { productId: s.productId, name: s.product?.name ?? 'N/A', quantity: 0, pricePerUnit: price, revenue: 0 };
-    byProduct[key].quantity += s.quantity || 0;
+    const key = String(item.productId);
+    if (!byProduct[key]) byProduct[key] = { productId: item.productId, name: item.product?.name ?? 'N/A', quantity: 0, pricePerUnit: price, revenue: 0 };
+    byProduct[key].quantity += item.quantity || 0;
     byProduct[key].revenue += rev;
   }
 

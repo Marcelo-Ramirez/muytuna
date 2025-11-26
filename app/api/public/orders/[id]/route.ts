@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/db';
 
 // GET - Obtener pedido específico
 export async function GET(
@@ -15,15 +13,26 @@ export async function GET(
       : context.params;
     const orderId = parseInt(paramsObj.id);
 
-    const order = await prisma.orderClient.findUnique({
+    const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        product: {
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                flavor: true,
+                pricePerUnit: true,
+                imageUrl: true
+              }
+            }
+          }
+        },
+        user: {
           select: {
+            id: true,
             name: true,
-            flavor: true,
-            pricePerUnit: true,
-            imageUrl: true
+            userName: true
           }
         }
       }
