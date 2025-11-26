@@ -3,15 +3,23 @@
 import { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Button } from '@/components/ui/button';
-import { X, Navigation, Package } from 'lucide-react';
+import { X, Navigation, Package, MapPin } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Icono personalizado para marcadores
-const createIcon = (isSelected: boolean) => new L.Icon({
-  iconUrl: isSelected 
-    ? 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png'
-    : 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+// Fix para el icono de Leaflet en Next.js (misma lógica que AddressMap)
+const defaultIcon = new L.Icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const selectedIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -40,19 +48,38 @@ interface OrdersMapPanelProps {
 interface GeocodedOrder extends OrderForMap {
   lat: number;
   lng: number;
+  displayAddress: string;
 }
 
-// Componente para centrar el mapa en un marcador seleccionado
-function MapController({ center }: { center: [number, number] | null }) {
+// Componente para centrar el mapa
+function MapCenterHandler({ center, zoom }: { center: [number, number] | null; zoom?: number }) {
   const map = useMap();
   
   useEffect(() => {
     if (center) {
-      map.setView(center, 15, { animate: true });
+      map.setView(center, zoom || 15, { animate: true });
     }
-  }, [center, map]);
+  }, [center, zoom, map]);
   
   return null;
+}
+
+// Helper para extraer coordenadas del formato "direccion||lat,lng"
+function parseAddressWithCoords(address: string): { displayAddress: string; lat: number | null; lng: number | null } {
+  if (!address) return { displayAddress: '', lat: null, lng: null };
+  
+  const parts = address.split('||');
+  if (parts.length === 2) {
+    const coords = parts[1].split(',');
+    if (coords.length === 2) {
+      const lat = parseFloat(coords[0]);
+      const lng = parseFloat(coords[1]);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return { displayAddress: parts[0], lat, lng };
+      }
+    }
+  }
+  return { displayAddress: address, lat: null, lng: null };
 }
 
 export default function OrdersMapPanel({ 
@@ -72,57 +99,49 @@ export default function OrdersMapPanel({
     setMounted(true);
   }, []);
 
-  // Extraer coordenadas de las direcciones o hacer geocoding si es necesario
+  // Procesar órdenes - extraer coordenadas
   useEffect(() => {
+    if (!mounted) return;
+    
     const processOrders = async () => {
       setIsLoading(true);
       const results: GeocodedOrder[] = [];
 
       for (const order of orders) {
         if (order.shippingAddress) {
-          // Intentar extraer coordenadas del formato "direccion||lat,lng"
-          const parts = order.shippingAddress.split('||');
+          const { displayAddress, lat, lng } = parseAddressWithCoords(order.shippingAddress);
           
-          if (parts.length === 2) {
+          if (lat !== null && lng !== null) {
             // Tiene coordenadas incluidas
-            const coords = parts[1].split(',');
-            if (coords.length === 2) {
-              const lat = parseFloat(coords[0]);
-              const lng = parseFloat(coords[1]);
-              if (!isNaN(lat) && !isNaN(lng)) {
+            results.push({
+              ...order,
+              lat,
+              lng,
+              displayAddress
+            });
+          } else {
+            // Intentar geocoding como fallback
+            try {
+              const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(order.shippingAddress)}&limit=1`,
+                { headers: { 'Accept-Language': 'es' } }
+              );
+              const data = await response.json();
+              
+              if (data && data.length > 0) {
                 results.push({
                   ...order,
-                  lat,
-                  lng,
-                  // Mostrar solo la dirección sin las coordenadas
-                  shippingAddress: parts[0]
+                  lat: parseFloat(data[0].lat),
+                  lng: parseFloat(data[0].lon),
+                  displayAddress: order.shippingAddress
                 });
-                continue;
               }
+              // Delay para rate limits
+              await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (error) {
+              console.error('Error geocoding:', error);
             }
           }
-          
-          // Si no tiene coordenadas, intentar geocoding
-          try {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(order.shippingAddress)}&limit=1`,
-              { headers: { 'Accept-Language': 'es' } }
-            );
-            const data = await response.json();
-            
-            if (data && data.length > 0) {
-              results.push({
-                ...order,
-                lat: parseFloat(data[0].lat),
-                lng: parseFloat(data[0].lon)
-              });
-            }
-          } catch (error) {
-            console.error('Error geocoding:', error);
-          }
-          
-          // Pequeño delay para respetar rate limits de Nominatim
-          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
 
@@ -133,74 +152,92 @@ export default function OrdersMapPanel({
     if (orders.length > 0) {
       processOrders();
     } else {
+      setGeocodedOrders([]);
       setIsLoading(false);
     }
-  }, [orders]);
+  }, [orders, mounted]);
 
   // Centro del mapa basado en el pedido seleccionado
-  const mapCenter = useMemo(() => {
+  const mapCenter = useMemo((): [number, number] => {
     if (selectedOrderId) {
       const selected = geocodedOrders.find(o => o.id === selectedOrderId);
       if (selected) {
-        return [selected.lat, selected.lng] as [number, number];
+        return [selected.lat, selected.lng];
       }
     }
     if (geocodedOrders.length > 0) {
-      return [geocodedOrders[0].lat, geocodedOrders[0].lng] as [number, number];
+      return [geocodedOrders[0].lat, geocodedOrders[0].lng];
     }
     return defaultCenter;
-  }, [selectedOrderId, geocodedOrders]);
+  }, [selectedOrderId, geocodedOrders, defaultCenter]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusInfo = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-500';
-      case 'paid': return 'bg-blue-500';
-      case 'pending': return 'bg-yellow-500';
-      case 'cancelled': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'completed': return { color: 'bg-green-500', text: 'Completado' };
+      case 'paid': return { color: 'bg-blue-500', text: 'Pagado' };
+      case 'pending': return { color: 'bg-yellow-500', text: 'Pendiente' };
+      case 'cancelled': return { color: 'bg-red-500', text: 'Cancelado' };
+      default: return { color: 'bg-gray-500', text: status };
     }
   };
 
+  // Loading inicial
   if (!mounted) {
-    return null;
+    return (
+      <div className="w-full lg:w-[420px] h-full bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+      </div>
+    );
   }
 
   return (
-    <div className="fixed right-0 top-0 h-full w-full lg:w-[400px] bg-background border-l shadow-xl z-40 flex flex-col">
+    <div className="w-full lg:w-[420px] h-full bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700 flex flex-col shadow-xl">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-background">
+      <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
         <div className="flex items-center gap-2">
-          <Navigation className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold">Mapa de Entregas</h2>
-          <span className="text-sm text-muted-foreground">
-            ({geocodedOrders.length} ubicaciones)
-          </span>
+          <div className="w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
+            <Navigation className="h-4 w-4 text-amber-600" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-neutral-900 dark:text-white">Mapa de Entregas</h2>
+            <span className="text-xs text-neutral-500">
+              {geocodedOrders.length} ubicación{geocodedOrders.length !== 1 ? 'es' : ''}
+            </span>
+          </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onClose}
+          className="hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
           <X className="h-5 w-5" />
         </Button>
       </div>
 
       {/* Mapa */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-[300px] bg-neutral-100 dark:bg-neutral-800">
         {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
+          <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-neutral-900">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Cargando ubicaciones...</p>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500 mx-auto mb-3" />
+              <p className="text-sm text-neutral-500">Cargando ubicaciones...</p>
             </div>
           </div>
         ) : geocodedOrders.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center p-4">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground">No hay pedidos con dirección</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-neutral-900">
+            <div className="text-center p-6">
+              <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Package className="h-8 w-8 text-neutral-400" />
+              </div>
+              <p className="text-neutral-600 dark:text-neutral-400 font-medium">No hay pedidos con dirección</p>
+              <p className="text-sm text-neutral-400 mt-1">Los pedidos con envío aparecerán aquí</p>
             </div>
           </div>
         ) : (
           <MapContainer
             center={mapCenter}
-            zoom={13}
+            zoom={14}
             style={{ height: '100%', width: '100%' }}
             zoomControl={true}
           >
@@ -208,33 +245,35 @@ export default function OrdersMapPanel({
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <MapController center={selectedOrderId ? mapCenter : null} />
+            <MapCenterHandler center={selectedOrderId ? mapCenter : null} />
             
             {geocodedOrders.map((order) => (
               <Marker
                 key={order.id}
                 position={[order.lat, order.lng]}
-                icon={createIcon(order.id === selectedOrderId)}
+                icon={order.id === selectedOrderId ? selectedIcon : defaultIcon}
                 eventHandlers={{
                   click: () => onSelectOrder(order.id)
                 }}
               >
                 <Popup>
-                  <div className="min-w-[200px]">
+                  <div className="min-w-[180px] p-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-2 h-2 rounded-full ${getStatusColor(order.status)}`} />
-                      <span className="font-semibold">
+                      <div className={`w-2 h-2 rounded-full ${getStatusInfo(order.status).color}`} />
+                      <span className="font-semibold text-sm">
                         {order.orderNumber || `Pedido #${order.id}`}
                       </span>
                     </div>
                     {order.user && (
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Cliente: {order.user.name}
+                      <p className="text-xs text-gray-600 mb-1">
+                        👤 {order.user.name}
                       </p>
                     )}
-                    <p className="text-sm mb-2 line-clamp-2">{order.shippingAddress}</p>
-                    <p className="font-medium text-primary">
-                      Total: Bs {order.totalAmount.toFixed(2)}
+                    <p className="text-xs text-gray-500 mb-2 line-clamp-2">
+                      📍 {order.displayAddress}
+                    </p>
+                    <p className="font-semibold text-amber-600">
+                      Bs {order.totalAmount.toFixed(2)}
                     </p>
                   </div>
                 </Popup>
@@ -245,29 +284,48 @@ export default function OrdersMapPanel({
       </div>
 
       {/* Lista de pedidos */}
-      <div className="border-t max-h-[200px] overflow-y-auto">
+      <div className="border-t border-neutral-200 dark:border-neutral-700 max-h-[220px] overflow-y-auto bg-white dark:bg-neutral-900">
         <div className="p-2 space-y-1">
-          {geocodedOrders.map((order) => (
-            <button
-              key={order.id}
-              onClick={() => onSelectOrder(order.id)}
-              className={`w-full text-left p-2 rounded-lg transition-colors ${
-                order.id === selectedOrderId 
-                  ? 'bg-primary/10 border border-primary' 
-                  : 'hover:bg-muted'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-sm">
-                  {order.orderNumber || `#${order.id}`}
-                </span>
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(order.status)}`} />
-              </div>
-              <p className="text-xs text-muted-foreground truncate">
-                {order.shippingAddress}
-              </p>
-            </button>
-          ))}
+          {geocodedOrders.length === 0 && !isLoading && (
+            <p className="text-center text-sm text-neutral-400 py-4">Sin ubicaciones para mostrar</p>
+          )}
+          {geocodedOrders.map((order) => {
+            const statusInfo = getStatusInfo(order.status);
+            return (
+              <button
+                key={order.id}
+                onClick={() => onSelectOrder(order.id)}
+                className={`w-full text-left p-3 rounded-xl transition-all ${
+                  order.id === selectedOrderId 
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-500' 
+                    : 'bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 border-2 border-transparent'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-sm text-neutral-900 dark:text-white">
+                    {order.orderNumber || `#${order.id}`}
+                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full text-white ${statusInfo.color}`}>
+                    {statusInfo.text}
+                  </span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <MapPin className="h-3 w-3 text-neutral-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">
+                    {order.displayAddress}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  {order.user && (
+                    <span className="text-xs text-neutral-400">{order.user.name}</span>
+                  )}
+                  <span className="text-sm font-semibold text-amber-600 ml-auto">
+                    Bs {order.totalAmount.toFixed(2)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
