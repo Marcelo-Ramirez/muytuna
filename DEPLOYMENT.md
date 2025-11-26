@@ -3,24 +3,23 @@
 ## Variables de Entorno Críticas
 
 ### NEXTAUTH_URL
-**Para evitar redirecciones a localhost en producción:**
+**CRÍTICO: Debes cambiar esto en producción**
 
-1. **Opción A (Recomendada - Auto-detección)**: Dejar en localhost
-   ```env
-   NEXTAUTH_URL=http://localhost:3000
-   ```
-   La aplicación **detecta automáticamente** el dominio/IP del request y lo usa en producción.
+**En desarrollo**:
+```env
+NEXTAUTH_URL=http://localhost:3000
+```
 
-2. **Opción B**: Configurar explícitamente tu dominio de producción
-   ```env
-   NEXTAUTH_URL=https://tudominio.com:3000
-   ```
-   o
-   ```env
-   NEXTAUTH_URL=http://192.168.1.100:3000
-   ```
+**En producción** - Cambiar a tu dominio/IP real:
+```env
+NEXTAUTH_URL=http://192.168.1.100:3000
+```
+o
+```env
+NEXTAUTH_URL=https://tudominio.com
+```
 
-**La Opción A es mejor** porque permite que la app funcione en cualquier dominio sin cambiar configuración.
+**⚠️ IMPORTANTE**: Si dejas `localhost` en producción, las redirecciones NO funcionarán correctamente.
 
 ### Ejemplo de .env en Producción
 
@@ -44,11 +43,6 @@ GOOGLE_CLIENT_SECRET=tu_client_secret
 
 ## Cambios Implementados
 
-✅ **Detección Automática de Dominio** (`app/api/auth/[...nextauth]/route.ts`):
-- Detecta automáticamente `x-forwarded-host` y `x-forwarded-proto` del request
-- Sobrescribe `NEXTAUTH_URL` dinámicamente si es localhost o no está configurado
-- **Funciona en cualquier dominio/IP sin configuración adicional**
-
 ✅ **Redirecciones de signOut**:
 - Cambiadas de URLs absolutas (`window.location.origin`) a rutas relativas
 - `SystemHeader.tsx`: `callbackUrl: "/"`
@@ -62,7 +56,8 @@ GOOGLE_CLIENT_SECRET=tu_client_secret
 2. **Copiar y configurar .env**:
    ```bash
    cp .env.example .env
-   # Editar .env y dejar NEXTAUTH_URL vacío
+   # Editar .env y cambiar NEXTAUTH_URL a tu dominio/IP de producción
+   # Ejemplo: NEXTAUTH_URL=http://192.168.1.100:3000
    ```
 3. **Instalar dependencias**:
    ```bash

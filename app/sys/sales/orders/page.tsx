@@ -44,6 +44,7 @@ interface Order {
   contactPhone: string | null;
   shippingAddress: string | null;
   paymentMethod: string | null;
+  payerName: string | null;
   subtotal: number;
   shippingCost: number;
   totalAmount: number;
@@ -395,6 +396,16 @@ export default function SalesOrdersPage() {
                         <div className="flex items-start gap-2">
                           <CreditCard className="h-4 w-4 mt-0.5 text-gray-400" />
                           <span>Pago: {order.paymentMethod}</span>
+                        </div>
+                      )}
+                      
+                      {order.payerName && (
+                        <div className="flex items-start gap-2">
+                          <User className="h-4 w-4 mt-0.5 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Pagador</p>
+                            <p className="font-medium">{order.payerName}</p>
+                          </div>
                         </div>
                       )}
                     </div>

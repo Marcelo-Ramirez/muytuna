@@ -73,7 +73,7 @@ export async function PATCH(req: Request, context: RouteContext) {
 
   try {
     const body = await req.json();
-    const { action, paymentMethod, shippingAddress, contactPhone } = body;
+    const { action, paymentMethod, shippingAddress, contactPhone, payerName } = body;
 
     const existingOrder = await prisma.order.findFirst({
       where: {
@@ -110,10 +110,30 @@ export async function PATCH(req: Request, context: RouteContext) {
         };
         break;
 
+      case 'update_phone':
+        if (!contactPhone) {
+          return NextResponse.json({ error: 'Teléfono requerido' }, { status: 400 });
+        }
+        updateData = {
+          contactPhone: contactPhone
+        };
+        break;
+
+      case 'update_payer_name': {
+        const { payerName } = body;
+        if (!payerName || typeof payerName !== 'string' || !payerName.trim()) {
+          return NextResponse.json({ error: 'Nombre del pagador requerido' }, { status: 400 });
+        }
+        updateData = {
+          payerName: payerName.trim()
+        };
+        break;
+      }
+
       case 'toggle_delivery': {
         const enableDelivery = body.enableDelivery as boolean;
         const newShippingCost = enableDelivery ? SHIPPING_COST : 0;
-        const newTotalAmount = existingOrder.subtotal + newShippingCost + existingOrder.taxAmount;
+        const newTotalAmount = existingOrder.subtotal + newShippingCost; // Sin impuestos
         
         updateData = {
           shippingCost: newShippingCost,

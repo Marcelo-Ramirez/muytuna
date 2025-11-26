@@ -83,8 +83,8 @@ export async function POST(req: Request) {
       orderItemsData.push({ productId: item.productId, quantity: item.quantity, unitPrice: product.pricePerUnit, subtotal: itemSubtotal });
     }
     const shippingCost = 3.00;
-    const taxAmount = subtotal * 0.08;
-    const totalAmount = subtotal + shippingCost + taxAmount;
+    const taxAmount = 0; // Sin impuestos
+    const totalAmount = subtotal + shippingCost;
     const order = await prisma.$transaction(async (tx) => {
       return await tx.order.create({
         data: {
