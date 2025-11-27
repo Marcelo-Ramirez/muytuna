@@ -240,26 +240,35 @@ export default function OrdersDashboardPage() {
         <Fragment>
             <PublicHeader />
             <div className="container mx-auto px-4 py-6">
-                <Tabs defaultValue={defaultTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 mb-6">
-                        <TabsTrigger value="pending" className="flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            Pendientes
-                        </TabsTrigger>
-                        <TabsTrigger value="history" className="flex items-center gap-2">
-                            <History className="h-4 w-4" />
-                            Historial
-                        </TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="pending">
-                        <PendingOrdersTab />
-                    </TabsContent>
-                    
-                    <TabsContent value="history">
-                        <HistoryTab />
-                    </TabsContent>
-                </Tabs>
+                {/* Vista móvil: Tabs */}
+                <div className="lg:hidden">
+                    <Tabs defaultValue={defaultTab} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 mb-6">
+                            <TabsTrigger value="pending" className="flex items-center gap-2">
+                                <Clock className="h-4 w-4" />
+                                Pendientes
+                            </TabsTrigger>
+                            <TabsTrigger value="history" className="flex items-center gap-2">
+                                <History className="h-4 w-4" />
+                                Historial
+                            </TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="pending">
+                            <PendingOrdersTab />
+                        </TabsContent>
+                        
+                        <TabsContent value="history">
+                            <HistoryTab />
+                        </TabsContent>
+                    </Tabs>
+                </div>
+
+                {/* Vista desktop: 2 columnas lado a lado */}
+                <div className="hidden lg:grid lg:grid-cols-2 lg:gap-6">
+                    <PendingOrdersTab />
+                    <HistoryTab />
+                </div>
             </div>
         </Fragment>
     );

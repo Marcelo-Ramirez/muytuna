@@ -10,6 +10,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { ClientLoginModal } from '@/components/auth/ClientLoginModal';
 import { ClientRegisterModal } from '@/components/auth/ClientRegisterModal';
+import { CartModal } from '@/components/cart/CartModal';
 import { Button } from "@/components/ui/button";
 
 const NavLinks = [
@@ -265,19 +266,24 @@ export function PublicHeader() {
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
 
   const [totalItemsInCart, setTotalItemsInCart] = useState(0);
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
+  const [cart, setCart] = useState<Record<number, { productId: number; name: string; pricePerUnit: number; quantity: number }>>({});
 
   useEffect(() => {
     const updateCartCount = () => {
       try {
         const storedCart = localStorage.getItem('userCart');
         if (storedCart) {
-          const cart = JSON.parse(storedCart);
-          const total = Object.values(cart as Record<string, { quantity: number }>).reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0);
+          const cartData = JSON.parse(storedCart);
+          setCart(cartData);
+          const total = Object.values(cartData as Record<string, { quantity: number }>).reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0);
           setTotalItemsInCart(total);
         } else {
+          setCart({});
           setTotalItemsInCart(0);
         }
       } catch {
+        setCart({});
         setTotalItemsInCart(0);
       }
     };
@@ -292,7 +298,7 @@ export function PublicHeader() {
 
   return (
     <>
-      <header className={`bg-white dark:bg-background backdrop-blur-sm shadow-sm sticky top-0 z-40`}>
+      <header className={`bg-white dark:bg-background backdrop-blur-sm shadow-sm sticky top-0 z-40 hidden md:block`}>
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-20 gap-4">
             <Link href="/" className="hidden md:flex items-center gap-3">
@@ -318,7 +324,19 @@ export function PublicHeader() {
               </div>
 
               <div className="hidden md:flex">
-                <Button variant="outline" className="relative h-12 w-12 rounded-full shadow-none hover:bg-zinc-200/50 dark:hover:bg-zinc-800 border-zinc-300 dark:border-zinc-600" onClick={() => router.push('/cart')} size="icon" title="Ver Carrito">
+                <Button 
+                  variant="outline" 
+                  className="relative h-12 w-12 rounded-full shadow-none hover:bg-zinc-200/50 dark:hover:bg-zinc-800 border-zinc-300 dark:border-zinc-600" 
+                  onClick={() => {
+                    if (window.innerWidth >= 1024) {
+                      setIsCartModalOpen(true);
+                    } else {
+                      router.push('/cart');
+                    }
+                  }} 
+                  size="icon" 
+                  title="Ver Carrito"
+                >
                   <ShoppingBag className="h-6 w-6 text-foreground" />
                   {totalItemsInCart > 0 && (
                     <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-zinc-900 bg-yellow-500 dark:bg-primary rounded-full">
@@ -332,7 +350,14 @@ export function PublicHeader() {
         </div>
       </header>
 
-      {!isSidebarOpen && (
+      {/* Header móvil con título */}
+      {mobilePageTitle && (
+        <div className="md:hidden bg-white dark:bg-background shadow-sm sticky top-0 z-30 py-4">
+          <h1 className="text-xl font-bold text-foreground text-center">{mobilePageTitle}</h1>
+        </div>
+      )}
+
+      {!isSidebarOpen && !pathname.match(/^\/orders\/\d+$/) && (
         <div className="md:hidden fixed top-4 left-4 z-[55] p-1">
           <Button
             variant="ghost"
@@ -411,6 +436,7 @@ export function PublicHeader() {
 
       <ClientLoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLoginSuccess={() => { setIsLoginOpen(false); globalThis.location.reload(); }} onOpenRegister={() => { setIsLoginOpen(false); setIsRegisterOpen(true); }} />
       <ClientRegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} onOpenLogin={() => { setIsRegisterOpen(false); setIsLoginOpen(true); }} />
+      <CartModal isOpen={isCartModalOpen} onClose={() => setIsCartModalOpen(false)} cart={cart} setCart={setCart} />
     </>
   );
 }

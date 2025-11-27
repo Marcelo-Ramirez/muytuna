@@ -315,7 +315,7 @@ export default function CatalogPage() {
                             <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Nuestra colección de Gomitas</h2>
                         </header>
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6 lg:flex-nowrap">
-                            <label className="flex flex-col min-w-40 h-14 w-full lg:flex-1">
+                            <label className="flex flex-col min-w-40 h-10 w-full lg:max-w-sm">
                                 <div className="flex w-full flex-1 items-stretch rounded-full h-full border-2 border-zinc-600">
                                     <div className="text-zinc-500 dark:text-zinc-400 flex border-none bg-primary dark:bg-zinc-800 items-center justify-center pl-5 rounded-l-full border-r-0">
                                         <Search className="h-5 w-5" />
@@ -329,7 +329,7 @@ export default function CatalogPage() {
                                     />
                                 </div>
                             </label>
-                            <div className="flex gap-3 overflow-x-auto whitespace-nowrap justify-start lg:flex-1 lg:overflow-visible lg:whitespace-nowrap lg:justify-start no-scrollbar">
+                            <div className="flex gap-3 overflow-x-auto whitespace-nowrap justify-start lg:flex-1 lg:overflow-x-auto lg:whitespace-nowrap lg:justify-start no-scrollbar">
                                 {filterOptions.map((filterOption) => (
                                     <button 
                                         key={filterOption.value}

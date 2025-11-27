@@ -32,7 +32,8 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true); 
     const [isQrModalOpen, setIsQrModalOpen] = useState(false); 
-    const [isInitiating, setIsInitiating] = useState(false); 
+    const [isInitiating, setIsInitiating] = useState(false);
+    const [currentOrderId, setCurrentOrderId] = useState<number | null>(null); 
 
 
     useEffect(() => {
@@ -90,6 +91,8 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
                 throw new Error(errorData.error || "Fallo al iniciar el pedido. Verifique el stock.");
             }
 
+            const data = await res.json();
+            setCurrentOrderId(data.order.id);
             
             onClose(); 
             setIsQrModalOpen(true); 
@@ -122,6 +125,7 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
             console.log("Limpiando carrito..."); // DEBUG
             localStorage.removeItem('userCart'); // Elimina del navegador
             setCart({}); // Resetea el estado local de React
+            globalThis.dispatchEvent(new Event('cartUpdate'));
             console.log("Carrito limpiado."); // DEBUG
         } catch (e) {
              console.error("Error al limpiar el carrito:", e);
@@ -131,8 +135,12 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
         // 3. Muestra mensaje al cliente
         alert('Gracias por tu notificación. Nuestro equipo verificará tu pago pronto.');
         
-        // 4. Redirige al historial
-        router.push('/orders'); 
+        // 4. Redirige a la página del pedido específico
+        if (currentOrderId) {
+            router.push(`/orders/${currentOrderId}`);
+        } else {
+            router.push('/orders');
+        }
     };
 
 
@@ -159,7 +167,7 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
         <div className="flex flex-col flex-grow overflow-hidden">
             
             {/* Lista de Productos (Scrollable) */}
-            <div className="flex-grow overflow-y-auto p-6 space-y-4">
+            <div className="flex-grow overflow-y-auto p-6 lg:px-12 space-y-4">
                 {cartItems.map(item => (
                     <div 
                         key={item.productId} 
@@ -183,21 +191,38 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
                 ))}
             </div>
 
-            {/* Pie de Página (Resumen y Botón de Checkout) */}
-            <DialogFooter className="p-6 pt-4 border-t bg-background sticky bottom-0">
+            {/* Pie de Página (Resumen y Botones) */}
+            <DialogFooter className="p-6 lg:px-12 pt-4 border-t bg-background sticky bottom-0">
                 <div className="w-full space-y-3">
                     <div className="flex justify-between">
                         <p className="text-base font-bold">Subtotal:</p>
                         <p className="text-xl font-extrabold text-primary">Bs {totalPrice.toFixed(2)}</p>
                     </div>
                     <Button 
-                        className="w-full h-12" 
+                        className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-base rounded-full" 
                         onClick={handleInitiatePayment} 
                         disabled={cartItems.length === 0 || isInitiating}
                     >
-                        {isInitiating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        {isInitiating ? 'Iniciando Pago...' : `Pagar Ahora (Bs ${totalPrice.toFixed(2)})`}
+                        {isInitiating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                        {isInitiating ? 'Procesando...' : 'Realizar pedido'}
                     </Button>
+                    <Button 
+                        onClick={() => { onClose(); router.push('/catalog'); }} 
+                        variant="outline"
+                        className="w-full h-12 border-neutral-300 text-neutral-700 hover:bg-neutral-50 font-medium rounded-full"
+                    >
+                        Continuar Comprando
+                    </Button>
+                    <button
+                        onClick={() => {
+                            setCart({});
+                            localStorage.removeItem('userCart');
+                            globalThis.dispatchEvent(new Event('cartUpdate'));
+                        }}
+                        className="w-full text-center text-red-500 hover:text-red-600 text-sm py-2 transition-colors font-medium"
+                    >
+                        Vaciar Carrito
+                    </button>
                 </div>
             </DialogFooter>
         </div>
@@ -206,8 +231,8 @@ export function CartSummaryModal({ isOpen, onClose, cart, setCart /*, onOpenLogi
     return (
         <Fragment>
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col p-0"> 
-                    <DialogHeader className="p-6 pb-0">
+                <DialogContent className="sm:max-w-2xl lg:max-w-4xl max-h-[90vh] flex flex-col p-0 lg:mx-8 bg-white"> 
+                    <DialogHeader className="p-6 pb-0 lg:px-12">
                         <DialogTitle className="text-2xl">{cartTitle}</DialogTitle>
                     </DialogHeader>
                     {content}

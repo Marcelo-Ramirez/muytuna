@@ -1,7 +1,7 @@
 // app/orders/[orderId]/page.tsx
 'use client';
 
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Loader2, ArrowLeft, Trash2, Phone, MapPin, CheckCircle, Clock, XCircle,
 import { getProductImage } from '@/components/imageMap/productImages';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { PublicHeader } from '@/components/layout/PublicHeader';
 
 // Lazy load del mapa para evitar SSR issues
 const AddressMap = lazy(() => import('@/components/maps/AddressMap'));
@@ -417,20 +418,26 @@ export default function OrderDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
-      </div>
+      <Fragment>
+        <PublicHeader />
+        <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+        </div>
+      </Fragment>
     );
   }
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-neutral-100 flex flex-col items-center justify-center p-4">
-        <p className="text-red-500 mb-4">{error || 'Pedido no encontrado'}</p>
-        <Button variant="outline" onClick={() => router.back()}>
-          Volver
-        </Button>
-      </div>
+      <Fragment>
+        <PublicHeader />
+        <div className="min-h-screen bg-neutral-100 flex flex-col items-center justify-center p-4">
+          <p className="text-red-500 mb-4">{error || 'Pedido no encontrado'}</p>
+          <Button variant="outline" onClick={() => router.back()}>
+            Volver
+          </Button>
+        </div>
+      </Fragment>
     );
   }
 
@@ -438,38 +445,54 @@ export default function OrderDetailPage() {
   const StatusIcon = statusInfo.icon;
 
   return (
-    <div className="min-h-screen bg-neutral-100">
-      {/* Header */}
-      <div className="bg-white px-4 py-4 flex items-center justify-between shadow-sm">
-        <button
-          onClick={() => router.back()}
-          className="p-2 hover:bg-neutral-100 rounded-full transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5 text-neutral-700" />
-        </button>
-        <h1 className="text-lg font-semibold text-neutral-800">Pedido Realizado</h1>
-        <button
-          onClick={() => setShowDeleteModal(true)}
-          disabled={order.status === 'completed' || order.status === 'cancelled'}
-          className="p-2 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Trash2 className="h-5 w-5 text-red-500" />
-        </button>
-      </div>
+    <Fragment>
+      <PublicHeader />
+      <div className="min-h-screen bg-muted">
+        {/* Header - Solo visible en móvil */}
+        <div className="lg:hidden bg-card px-4 py-4 flex items-center justify-between shadow-sm border-b border-border fixed top-0 w-full bg-white">
+          <button
+            onClick={() => router.back()}
+            className="p-2 hover:bg-muted rounded-full transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5 text-muted-foreground" />
+          </button>
+          <h1 className="text-lg font-semibold text-foreground">Pedido Realizado</h1>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            disabled={order.status === 'completed' || order.status === 'cancelled'}
+            className="p-2 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="h-5 w-5 text-red-500" />
+          </button>
+        </div>
 
-      {/* Contenido */}
-      <div className="p-4 pb-48 space-y-4">
-        {/* Resumen del Carrito */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="font-semibold text-neutral-800">Resumen del Carrito</h2>
+        {/* Contenido */}
+        <div className="p-4 pb-48 space-y-4 lg:px-16 lg:py-8 lg:max-w-7xl lg:mx-auto">
+          {/* Header Desktop */}
+          <div className="hidden lg:flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-foreground">Pedido Realizado</h1>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(true)}
+              disabled={order.status === 'completed' || order.status === 'cancelled'}
+              className="border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar Pedido
+            </Button>
+          </div>
+
+          {/* Resumen del Carrito */}
+          <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
+          <div className="flex justify-between items-center mb-3 mt-10">
+            <h2 className="font-semibold text-card-foreground">Resumen del Carrito</h2>
             {!isEditingItems ? (
               <button 
                 onClick={() => {
                   setIsEditingItems(true);
                   setHasUnsavedChanges(true);
                 }}
-                className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+                className="text-sm text-amber-600 dark:text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 font-medium"
               >
                 Editar
               </button>
@@ -481,14 +504,14 @@ export default function OrderDetailPage() {
                     setIsEditingItems(false);
                     setHasUnsavedChanges(false);
                   }}
-                  className="text-sm text-neutral-500 hover:text-neutral-700"
+                  className="text-sm text-muted-foreground hover:text-foreground"
                   disabled={isUpdatingItems}
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={handleItemsSave}
-                  className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1"
+                  className="text-sm text-amber-600 dark:text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 font-medium flex items-center gap-1"
                   disabled={isUpdatingItems}
                 >
                   {isUpdatingItems ? (
@@ -516,17 +539,17 @@ export default function OrderDetailPage() {
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <span className="flex-1 text-neutral-700">{item.product.name}</span>
+                <span className="flex-1 text-foreground">{item.product.name}</span>
                 {isEditingItems ? (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleItemQuantityChange(item.id, -1)}
-                      className="w-6 h-6 rounded-full border border-neutral-300 flex items-center justify-center hover:bg-neutral-100"
+                      className="w-6 h-6 rounded-full border border-border flex items-center justify-center hover:bg-muted"
                       disabled={isUpdatingItems}
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <span className="w-8 text-center text-neutral-700 font-medium">{item.quantity}</span>
+                    <span className="w-8 text-center text-foreground font-medium">{item.quantity}</span>
                     <button
                       onClick={() => handleItemQuantityChange(item.id, 1)}
                       className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center hover:bg-amber-600"
@@ -536,7 +559,7 @@ export default function OrderDetailPage() {
                     </button>
                   </div>
                 ) : (
-                  <span className="text-neutral-500 text-sm">x{item.quantity}</span>
+                  <span className="text-muted-foreground text-sm">x{item.quantity}</span>
                 )}
               </div>
             ))}
@@ -544,16 +567,16 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Dirección de Facturación */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="font-semibold text-neutral-800">Datos de Contacto</h2>
+            <h2 className="font-semibold text-card-foreground">Datos de Contacto</h2>
             {!isEditingPhone ? (
               <button 
                 onClick={() => {
                   setIsEditingPhone(true);
                   setHasUnsavedChanges(true);
                 }}
-                className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+                className="text-sm text-amber-600 dark:text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 font-medium"
               >
                 Editar
               </button>
@@ -565,14 +588,14 @@ export default function OrderDetailPage() {
                     setIsEditingPhone(false);
                     setHasUnsavedChanges(false);
                   }}
-                  className="text-sm text-neutral-500 hover:text-neutral-700"
+                  className="text-sm text-muted-foreground hover:text-foreground"
                   disabled={isUpdatingPhone}
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={handlePhoneSave}
-                  className="text-sm text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1"
+                  className="text-sm text-amber-600 dark:text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 font-medium flex items-center gap-1"
                   disabled={isUpdatingPhone}
                 >
                   {isUpdatingPhone ? (
@@ -588,7 +611,7 @@ export default function OrderDetailPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-3 text-neutral-600">
+          <div className="flex items-center gap-3 text-muted-foreground">
             <Phone className="h-4 w-4" />
             <div className="flex-1">
               <p className="text-sm font-medium mb-1">Número de teléfono</p>
@@ -598,30 +621,30 @@ export default function OrderDetailPage() {
                   value={editedPhone}
                   onChange={(e) => setEditedPhone(e.target.value)}
                   placeholder="Ej: +591 70123456"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400"
                   disabled={isUpdatingPhone}
                 />
               ) : (
-                <p className="text-sm text-neutral-500">{order.contactPhone || order.user?.phone || 'No especificado'}</p>
+                <p className="text-sm text-muted-foreground">{order.contactPhone || order.user?.phone || 'No especificado'}</p>
               )}
             </div>
           </div>
 
           {/* Nombre del Pagador (solo si ya fue establecido) */}
           {order.payerName && (
-            <div className="flex items-center gap-3 text-neutral-600 pt-3 border-t">
+            <div className="flex items-center gap-3 text-muted-foreground pt-3 border-t border-border">
               <User className="h-4 w-4" />
               <div className="flex-1">
                 <p className="text-sm font-medium mb-1">Nombre del Pagador</p>
-                <p className="text-sm text-neutral-500">{order.payerName}</p>
+                <p className="text-sm text-muted-foreground">{order.payerName}</p>
               </div>
             </div>
           )}
         </div>
 
         {/* Tipo de Entrega */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <h2 className="font-semibold text-neutral-800 mb-3">Tipo de Entrega</h2>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+          <h2 className="font-semibold text-card-foreground mb-3">Tipo de Entrega</h2>
           
           <div className="grid grid-cols-2 gap-3">
             {/* Opción: Recoger en tienda */}
@@ -630,15 +653,15 @@ export default function OrderDetailPage() {
               disabled={isUpdatingDelivery}
               className={`p-3 rounded-xl border-2 transition-all ${
                 !wantsDelivery 
-                  ? 'border-amber-500 bg-amber-50' 
-                  : 'border-neutral-200 hover:border-neutral-300'
+                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' 
+                  : 'border-border hover:border-muted-foreground'
               }`}
             >
-              <Store className={`h-6 w-6 mx-auto mb-2 ${!wantsDelivery ? 'text-amber-600' : 'text-neutral-400'}`} />
-              <p className={`text-sm font-medium ${!wantsDelivery ? 'text-amber-700' : 'text-neutral-600'}`}>
+              <Store className={`h-6 w-6 mx-auto mb-2 ${!wantsDelivery ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'}`} />
+              <p className={`text-sm font-medium ${!wantsDelivery ? 'text-amber-700 dark:text-amber-500' : 'text-muted-foreground'}`}>
                 Recoger en tienda
               </p>
-              <p className="text-xs text-neutral-500 mt-1">Gratis</p>
+              <p className="text-xs text-muted-foreground mt-1">Gratis</p>
             </button>
 
             {/* Opción: Envío a domicilio */}
@@ -647,22 +670,22 @@ export default function OrderDetailPage() {
               disabled={isUpdatingDelivery}
               className={`p-3 rounded-xl border-2 transition-all ${
                 wantsDelivery 
-                  ? 'border-amber-500 bg-amber-50' 
-                  : 'border-neutral-200 hover:border-neutral-300'
+                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' 
+                  : 'border-border hover:border-muted-foreground'
               }`}
             >
-              <Truck className={`h-6 w-6 mx-auto mb-2 ${wantsDelivery ? 'text-amber-600' : 'text-neutral-400'}`} />
-              <p className={`text-sm font-medium ${wantsDelivery ? 'text-amber-700' : 'text-neutral-600'}`}>
+              <Truck className={`h-6 w-6 mx-auto mb-2 ${wantsDelivery ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'}`} />
+              <p className={`text-sm font-medium ${wantsDelivery ? 'text-amber-700 dark:text-amber-500' : 'text-muted-foreground'}`}>
                 Envío a domicilio
               </p>
-              <p className="text-xs text-neutral-500 mt-1">Bs 3.00</p>
+              <p className="text-xs text-muted-foreground mt-1">Bs 3.00</p>
             </button>
           </div>
 
           {isUpdatingDelivery && (
             <div className="flex items-center justify-center mt-3">
-              <Loader2 className="h-4 w-4 animate-spin text-amber-500 mr-2" />
-              <span className="text-sm text-neutral-500">Actualizando...</span>
+              <Loader2 className="h-4 w-4 animate-spin text-amber-500 dark:text-amber-400 mr-2" />
+              <span className="text-sm text-muted-foreground">Actualizando...</span>
             </div>
           )}
         </div>
@@ -670,17 +693,17 @@ export default function OrderDetailPage() {
         {/* Dirección de Envío (solo si quiere delivery) */}
         {wantsDelivery && (
           <div 
-            className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:bg-neutral-50 transition-colors"
+            className="bg-card border border-border rounded-xl p-4 shadow-sm cursor-pointer hover:bg-muted transition-colors"
             onClick={() => setShowAddressMap(true)}
           >
             <div className="flex justify-between items-center mb-3">
-              <h2 className="font-semibold text-neutral-800">Dirección de Envío</h2>
-              <span className="text-sm text-amber-600">Editar</span>
+              <h2 className="font-semibold text-card-foreground">Dirección de Envío</h2>
+              <span className="text-sm text-amber-600 dark:text-amber-500">Editar</span>
             </div>
 
-            <div className="flex items-center gap-3 text-neutral-600">
-              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <MapPin className="h-4 w-4 text-amber-600" />
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <div className="w-8 h-8 bg-amber-100 dark:bg-amber-950/30 rounded-full flex items-center justify-center flex-shrink-0">
+                <MapPin className="h-4 w-4 text-amber-600 dark:text-amber-500" />
               </div>
               <p className="text-sm flex-1">
                 {getDisplayAddress(order.shippingAddress) || 'Toca para agregar tu dirección'}
@@ -690,8 +713,8 @@ export default function OrderDetailPage() {
         )}
 
         {/* Estado del Pedido */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <h2 className="font-semibold text-neutral-800 mb-3">Estado del pedido</h2>
+        <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
+          <h2 className="font-semibold text-card-foreground mb-3">Estado del pedido</h2>
 
           <div className={`flex items-center gap-3 p-3 rounded-lg ${statusInfo.bg}`}>
             <StatusIcon className={`h-5 w-5 ${statusInfo.color}`} />
@@ -700,28 +723,28 @@ export default function OrderDetailPage() {
                 {order.status === 'paid' ? 'Confirmado' : statusInfo.text}
               </p>
               {order.status === 'paid' && (
-                <p className="text-sm text-neutral-500">Tu pedido ha sido confirmado.</p>
+                <p className="text-sm text-muted-foreground">Tu pedido ha sido confirmado.</p>
               )}
               {order.status === 'pending' && (
-                <p className="text-sm text-neutral-500">Esperando confirmación de pago.</p>
+                <p className="text-sm text-muted-foreground">Esperando confirmación de pago.</p>
               )}
             </div>
           </div>
         </div>
 
         {/* Resumen de Costos */}
-        <div className="bg-white rounded-xl p-4 shadow-sm space-y-2">
-          <div className="flex justify-between text-neutral-600">
+        <div className="bg-card rounded-xl p-4 shadow-sm border border-border space-y-2">
+          <div className="flex justify-between text-muted-foreground">
             <span>Subtotal</span>
             <span>Bs {order.subtotal.toFixed(2)}</span>
           </div>
           {order.shippingCost > 0 && (
-            <div className="flex justify-between text-neutral-600">
+            <div className="flex justify-between text-muted-foreground">
               <span>Envío</span>
               <span>Bs {order.shippingCost.toFixed(2)}</span>
             </div>
           )}
-          <div className="flex justify-between font-bold text-lg pt-2 border-t">
+          <div className="flex justify-between font-bold text-lg pt-2 border-t border-border text-foreground">
             <span>Total</span>
             <span>Bs {order.totalAmount.toFixed(2)}</span>
           </div>
@@ -729,31 +752,33 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Footer fijo con botones */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 space-y-3 pb-6">
-        <Button
-          onClick={handleOpenPaymentModal}
-          disabled={order.status !== 'pending' || isEditingPhone || isEditingItems}
-          className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-base rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <CreditCard className="mr-2 h-5 w-5" />
-          Pagar
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 lg:px-16 space-y-3 pb-6 bg-white">
+        <div className="max-w-7xl mx-auto space-y-3">
+          <Button
+            onClick={handleOpenPaymentModal}
+            disabled={order.status !== 'pending' || isEditingPhone || isEditingItems}
+            className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-base rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <CreditCard className="mr-2 h-5 w-5" />
+            Pagar
+          </Button>
 
-        <Button
-          onClick={() => router.push('/')}
-          variant="outline"
-          className="w-full h-12 border-neutral-300 text-neutral-700 hover:bg-neutral-50 font-medium rounded-full"
-        >
-          Regresar al inicio
-        </Button>
+          <Button
+            onClick={() => router.push('/')}
+            variant="outline"
+            className="w-full h-12 font-medium rounded-full"
+          >
+            Regresar al inicio
+          </Button>
+        </div>
       </div>
 
       {/* Modal de confirmación de eliminación */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center">
-              <Trash2 className="h-6 w-6 text-neutral-500" />
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+              <Trash2 className="h-6 w-6 text-muted-foreground" />
             </div>
             <DialogTitle className="text-xl">Confirmar Eliminación de Pedido</DialogTitle>
             <DialogDescription className="text-center">
@@ -784,13 +809,13 @@ export default function OrderDetailPage() {
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-              <CreditCard className="h-6 w-6 text-amber-600" />
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950/20 flex items-center justify-center">
+              <CreditCard className="h-6 w-6 text-amber-600 dark:text-amber-500" />
             </div>
             <DialogTitle className="text-xl">Confirmar Pago</DialogTitle>
             <DialogDescription className="text-left space-y-3 pt-2">
               <div>
-                <label className="text-sm font-medium text-neutral-700">
+                <label className="text-sm font-medium text-foreground">
                   Nombre completo del pagador
                 </label>
                 <input
@@ -798,14 +823,14 @@ export default function OrderDetailPage() {
                   value={payerName}
                   onChange={(e) => setPayerName(e.target.value)}
                   placeholder="Ej: Juan Pérez García"
-                  className="w-full mt-1 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full mt-1 px-3 py-2 border border-input rounded-lg text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400"
                   disabled={isProcessingPayment}
                 />
               </div>
               
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-xs text-amber-800 font-medium mb-1">⚠️ Importante:</p>
-                <p className="text-xs text-amber-700">
+              <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-xs text-amber-800 dark:text-amber-500 font-medium mb-1">⚠️ Importante:</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
                   Por favor, coloque el nombre completo <strong>exactamente igual</strong> al que usa en su plataforma de pago (Yape, Banco, etc). 
                   Si el nombre difiere con el de la transferencia, el pago no se procesará correctamente.
                 </p>
@@ -843,12 +868,12 @@ export default function OrderDetailPage() {
       <Dialog open={showQRDownloadedModal} onOpenChange={setShowQRDownloadedModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-neutral-900 flex items-center justify-center">
-              <Download className="h-8 w-8 text-white" />
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-foreground flex items-center justify-center">
+              <Download className="h-8 w-8 text-background" />
             </div>
             <DialogTitle className="text-xl">QR de Pago Descargado</DialogTitle>
             <DialogDescription className="text-center pt-2">
-              <p className="text-base text-neutral-700">
+              <p className="text-base text-foreground">
                 Por favor, escanea el código QR descargado para realizar tu pago.
               </p>
             </DialogDescription>
@@ -868,8 +893,8 @@ export default function OrderDetailPage() {
       <Dialog open={showEmptyCartModal} onOpenChange={setShowEmptyCartModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-              <XCircle className="h-6 w-6 text-amber-600" />
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950/20 flex items-center justify-center">
+              <XCircle className="h-6 w-6 text-amber-600 dark:text-amber-500" />
             </div>
             <DialogTitle className="text-xl">Carrito Vacío</DialogTitle>
             <DialogDescription className="text-center">
@@ -903,8 +928,8 @@ export default function OrderDetailPage() {
       {showAddressMap && (
         <Suspense fallback={
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-            <div className="bg-white rounded-xl p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+            <div className="bg-card rounded-xl p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-amber-500 dark:text-amber-400" />
             </div>
           </div>
         }>
@@ -915,6 +940,7 @@ export default function OrderDetailPage() {
           />
         </Suspense>
       )}
-    </div>
+      </div>
+    </Fragment>
   );
 }
