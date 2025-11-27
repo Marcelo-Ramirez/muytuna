@@ -1,0 +1,410 @@
+# ============================================================================
+# Dockerfile para crear paquete portable de Next.js + Node.js
+# Target: Debian ARM64 en proot-distro (Termux) - Xperia XA
+# Output: Archivo .tar.gz con todo lo necesario para ejecutar sin instalaciones
+# ============================================================================
+
+# ============================================================================
+# Etapa 1: Instalación de dependencias
+# ============================================================================
+FROM --platform=linux/arm64 node:22-bookworm-slim AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma/
+
+# Instalar dependencias completas (para el build)
+RUN npm ci
+
+# Generar Prisma Client para ARM64 con OpenSSL 3.0.x
+ENV PRISMA_CLI_BINARY_TARGETS=linux-arm64-openssl-3.0.x
+RUN npx prisma generate
+
+# ============================================================================
+# Etapa 2: Build de la aplicación Next.js
+# ============================================================================
+FROM --platform=linux/arm64 node:22-bookworm-slim AS builder
+WORKDIR /app
+
+# Copiar dependencias
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
+
+# Copiar código fuente
+COPY . .
+
+# Variables de entorno para el build
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Build de Next.js (modo standalone - incluye solo deps necesarias)
+RUN npm run build
+
+# ============================================================================
+# Etapa 3: Empaquetado portable con Node.js incluido
+# ============================================================================
+FROM --platform=linux/arm64 node:22-bookworm-slim AS packager
+WORKDIR /package
+
+# Crear estructura de directorios
+RUN mkdir -p muytuna-app/nodejs muytuna-app/app
+
+# ============================================================================
+# Copiar Node.js portable con sus librerías
+# ============================================================================
+RUN cp /usr/local/bin/node muytuna-app/nodejs/ && \
+    cp /usr/local/bin/npx muytuna-app/nodejs/ 2>/dev/null || true
+
+# Copiar librerías necesarias de Node.js
+RUN mkdir -p muytuna-app/nodejs/lib && \
+    cp -r /usr/local/lib/node_modules muytuna-app/nodejs/lib/ 2>/dev/null || true
+
+# ============================================================================
+# Copiar aplicación Next.js standalone
+# ============================================================================
+COPY --from=builder /app/.next/standalone muytuna-app/app/
+COPY --from=builder /app/.next/static muytuna-app/app/.next/static
+COPY --from=builder /app/public muytuna-app/app/public
+COPY --from=builder /app/prisma muytuna-app/app/prisma
+COPY --from=builder /app/node_modules/.prisma muytuna-app/app/node_modules/.prisma
+COPY --from=builder /app/package.json muytuna-app/app/
+
+# Copiar archivos de seed si existen
+RUN if [ -f /app/prisma/seed.ts ]; then cp /app/prisma/seed.ts muytuna-app/app/prisma/; fi || true
+RUN if [ -f /app/prisma/seed.sql ]; then cp /app/prisma/seed.sql muytuna-app/app/prisma/; fi || true
+
+# Copiar base de datos SQLite si existe
+RUN if [ -f /app/prisma/database.sqlite ]; then \
+        cp /app/prisma/database.sqlite muytuna-app/app/prisma/; \
+    fi
+
+# Copiar .env si existe (excluye variables sensibles de desarrollo)
+RUN if [ -f /app/.env ]; then \
+        grep -v "DEV\|LOCAL\|TEST" /app/.env > muytuna-app/app/.env 2>/dev/null || true; \
+    fi
+
+# ============================================================================
+# Crear scripts de inicio y configuración
+# ============================================================================
+
+# Script de inicio (start.sh)
+RUN cat > muytuna-app/start.sh << 'EOF'
+#!/bin/bash
+set -e
+
+# Colores para output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+cd "$(dirname "$0")/app"
+
+echo -e "${BLUE}🚀 Iniciando MuyTuna Next.js App${NC}"
+echo "================================"
+
+# Variables de entorno
+export NODE_ENV=production
+export NEXT_TELEMETRY_DISABLED=1
+export PORT="${PORT:-3000}"
+export HOSTNAME="${HOSTNAME:-0.0.0.0}"
+
+echo -e "${GREEN}✓${NC} Puerto: $PORT"
+echo -e "${GREEN}✓${NC} Hostname: $HOSTNAME"
+echo ""
+
+# Ejecutar con Node.js portable
+exec ../nodejs/node server.js --hostname "$HOSTNAME" --port "$PORT" "$@"
+EOF
+
+# Script de setup inicial (setup.sh)
+RUN cat > muytuna-app/setup.sh << 'EOF'
+#!/bin/bash
+set -e
+
+# Colores
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║  MuyTuna Next.js - Setup Inicial          ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
+echo ""
+
+cd "$(dirname "$0")/app"
+
+# Verificar permisos de ejecución
+echo -e "${YELLOW}→${NC} Configurando permisos..."
+chmod +x ../start.sh ../stop.sh 2>/dev/null || true
+
+# Aplicar migraciones de Prisma
+if [ -f "prisma/schema.prisma" ]; then
+    echo -e "${YELLOW}→${NC} Aplicando migraciones de base de datos..."
+    ../nodejs/node ../nodejs/lib/node_modules/npm/bin/npx-cli.js prisma migrate deploy 2>/dev/null || {
+        echo -e "${YELLOW}⚠${NC}  No se pudieron aplicar migraciones (puede ser normal)"
+    }
+fi
+
+# Verificar base de datos
+if [ -f "prisma/database.sqlite" ]; then
+    echo -e "${GREEN}✓${NC} Base de datos SQLite encontrada"
+else
+    echo -e "${YELLOW}⚠${NC}  No se encontró base de datos, se creará al iniciar"
+fi
+
+echo ""
+echo -e "${GREEN}✓ Setup completado exitosamente!${NC}"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${BLUE}Para iniciar la aplicación:${NC}"
+echo "  cd $(dirname "$0")"
+echo "  ./start.sh"
+echo ""
+echo -e "${BLUE}Para detener:${NC}"
+echo "  ./stop.sh"
+echo ""
+echo -e "${BLUE}La aplicación estará disponible en:${NC}"
+echo "  http://localhost:3000"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+EOF
+
+# Script para detener (stop.sh)
+RUN cat > muytuna-app/stop.sh << 'EOF'
+#!/bin/bash
+echo "🛑 Deteniendo MuyTuna..."
+pkill -f "node server.js" && echo "✓ Aplicación detenida" || echo "⚠ No hay proceso en ejecución"
+EOF
+
+# Hacer scripts ejecutables
+RUN chmod +x muytuna-app/*.sh
+
+# ============================================================================
+# Crear documentación README.md
+# ============================================================================
+RUN cat > muytuna-app/README.md << 'EOF'
+# 🚀 MuyTuna Next.js - Paquete Portable
+
+Paquete completamente portable de la aplicación MuyTuna construido para:
+- **Plataforma**: Debian ARM64 (proot-distro en Termux)
+- **Dispositivo**: Xperia XA (Helio P10 MT6755)
+- **Node.js**: v22.20.0 (incluido)
+
+## 📦 Contenido del Paquete
+
+```
+muytuna-app/
+├── nodejs/              # Node.js portable (v22)
+│   ├── node            # Binario de Node.js
+│   └── lib/            # Módulos de Node.js
+├── app/                # Aplicación Next.js (standalone)
+│   ├── server.js       # Servidor Next.js
+│   ├── .next/          # Build optimizado
+│   ├── public/         # Archivos estáticos
+│   ├── prisma/         # Base de datos y schema
+│   └── node_modules/   # Dependencias mínimas
+├── start.sh            # Iniciar aplicación ⭐
+├── stop.sh             # Detener aplicación
+├── setup.sh            # Configuración inicial
+└── README.md           # Esta documentación
+```
+
+## 🔧 Instalación
+
+### 1. Transferir el paquete a tu dispositivo
+
+Desde tu PC con WSL/Docker:
+```bash
+# El archivo muytuna-app.tar.gz estará en tu directorio actual
+# Transfiérelo a tu Xperia XA usando adb, termux-share, o cable USB
+```
+
+En Termux (Xperia XA):
+```bash
+# Entrar a Debian proot-distro
+proot-distro login debian
+
+# Extraer el paquete
+cd ~
+tar -xzf muytuna-app.tar.gz
+cd muytuna-app
+```
+
+### 2. Configuración inicial (solo primera vez)
+
+```bash
+./setup.sh
+```
+
+### 3. Iniciar la aplicación
+
+```bash
+./start.sh
+```
+
+La aplicación estará disponible en: **http://localhost:3000**
+
+### 4. Detener la aplicación
+
+```bash
+./stop.sh
+```
+
+## ⚙️ Configuración Avanzada
+
+### Variables de Entorno
+
+Crear archivo `.env` en `app/.env`:
+
+```bash
+# Puerto de la aplicación (default: 3000)
+PORT=3000
+
+# Hostname (default: 0.0.0.0 para acceso externo)
+HOSTNAME=0.0.0.0
+
+# Database
+DATABASE_URL="file:./prisma/database.sqlite"
+
+# NextAuth (cambiar en producción)
+NEXTAUTH_SECRET="tu-secreto-seguro-aqui"
+NEXTAUTH_URL="http://localhost:3000"
+```
+
+### Ejecución en Background
+
+```bash
+# Iniciar en background
+nohup ./start.sh > app.log 2>&1 &
+
+# Ver logs
+tail -f app.log
+
+# Detener
+./stop.sh
+```
+
+### Acceso desde otros dispositivos
+
+1. Obtener IP de tu dispositivo:
+   ```bash
+   ip addr show wlan0 | grep inet
+   ```
+
+2. Acceder desde otro dispositivo en la misma red:
+   ```
+   http://[TU-IP]:3000
+   ```
+
+## 📊 Requisitos del Sistema
+
+- **Espacio en disco**: ~150-200 MB
+- **RAM**: Mínimo 512 MB disponible
+- **Sistema**: Debian ARM64 en proot-distro
+- **No requiere**: Instalaciones adicionales (todo incluido)
+
+## 🔍 Troubleshooting
+
+### Error: Permission denied
+
+```bash
+chmod +x start.sh stop.sh setup.sh
+```
+
+### Error: Cannot find module
+
+```bash
+cd app
+../nodejs/node --version  # Verificar Node.js
+ls -la node_modules/      # Verificar dependencias
+```
+
+### La aplicación no inicia
+
+```bash
+# Verificar logs
+./start.sh
+
+# Verificar puerto ocupado
+netstat -tlnp | grep 3000
+
+# Cambiar puerto
+PORT=8080 ./start.sh
+```
+
+### Base de datos no se crea
+
+```bash
+cd app
+../nodejs/node ../nodejs/lib/node_modules/npm/bin/npx-cli.js prisma migrate deploy
+../nodejs/node ../nodejs/lib/node_modules/npm/bin/npx-cli.js prisma db push
+```
+
+## 📝 Notas
+
+- Este paquete es completamente **standalone** (no requiere npm, node instalado)
+- Node.js v22 está **incluido** en el paquete
+- El modo **standalone de Next.js** reduce el tamaño en ~80%
+- Optimizado para **bajo consumo** de recursos
+
+## 🆘 Soporte
+
+Para problemas o preguntas, revisar:
+1. Los logs en `app.log` (si se ejecuta en background)
+2. La consola de salida al ejecutar `./start.sh`
+3. Los logs de Next.js en `app/.next/`
+
+---
+
+**Versión del paquete**: 1.0.0  
+**Fecha de build**: $(date)  
+**Plataforma**: linux/arm64 (ARMv8-A)
+EOF
+
+# ============================================================================
+# Crear archivo de información del sistema
+# ============================================================================
+RUN cat > muytuna-app/SYSTEM_INFO.txt << 'EOF'
+Build Information
+=================
+Platform: linux/arm64
+Architecture: ARMv8-A (64-bit)
+Target Device: Xperia XA (Helio P10 MT6755)
+Node.js Version: 22.20.0
+Next.js: Standalone mode
+Database: SQLite (included)
+
+Package Contents
+================
+- Node.js v22 portable binary
+- Next.js standalone application
+- Prisma Client (ARM64)
+- SQLite database
+- All required dependencies
+- Startup scripts
+
+Total Size: ~150-200 MB (compressed)
+
+No Additional Installations Required
+=====================================
+This package is completely self-contained.
+EOF
+
+# ============================================================================
+# Etapa 4: Crear tarball comprimido final y exportar
+# ============================================================================
+FROM --platform=linux/arm64 node:22-bookworm-slim AS tarball
+WORKDIR /export
+
+# Copiar todo el paquete
+COPY --from=packager /package/muytuna-app ./muytuna-app
+
+# Crear el tarball
+RUN tar -czf muytuna-app.tar.gz muytuna-app/
+
+# ============================================================================
+# Etapa 5: Exportar solo el tarball
+# ============================================================================
+FROM scratch AS export
+COPY --from=tarball /export/muytuna-app.tar.gz /

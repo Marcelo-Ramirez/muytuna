@@ -7,6 +7,9 @@ if (!process.env.NEXTAUTH_URL && process.env.NODE_ENV === 'production') {
 }
 
 const nextConfig: NextConfig = {
+  // Habilitar output standalone para Docker (reduce tamaño drásticamente)
+  output: 'standalone',
+  
   // Deshabilitar completamente los overlays de desarrollo
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",

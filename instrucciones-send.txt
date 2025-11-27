@@ -1,0 +1,81 @@
+para ejecutar docker en modo wsl:
+cd /mnt/c/Users/Admin/Documents/windsurf/muytuna && sudo docker buildx build --platform linux/arm64 --file Dockerfile.portable --target packager --tag muytuna-portable:latest --load --progress=plain . && CONTAINER_ID=$(sudo docker create muytuna-portable:latest) && sudo docker cp $CONTAINER_ID:/package/muytuna-app ./build/ && sudo docker rm $CONTAINER_ID && sudo chown -R $USER:$USER ./build/
+
+para comprimir
+cd build && tar -czf muytuna-app.tar.gz muytuna-app && mv muytuna-app.tar.gz ../ && cd .. && ls -lh muytuna-app.tar.gz
+
+para enviar
+scp -P 8022 muytuna-app.tar.gz u0_a193@192.168.0.223:~/
+
+descomprimir
+tar -xzf muytuna-app.tar.gz
+
+moverlo a debian
+mv muytuna-app ../usr/var/lib/proot-distro/installed-rootfs/debian/root/
+
+comando para iniciarlo en muytuna-app/:
+sed -i 's/\r$//' setup.sh start.sh stop.sh
+chmod +x setup.sh start.sh stop.sh
+./setup.sh
+
+empezar sistema:
+./start.sh
+
+ejecutar en la red:
+./stop.sh
+
+
+
+
+
+
+
+
+El problema es que sigue mostrando `Hostname: localhost` aunque edité el Dockerfile. Necesitas reconstruir el paquete con mi cambio. 
+
+Primero verifica que el cambio esté en el Dockerfile: Perfecto, el cambio está. Ahora **DEBES** reconstruir el paquete en WSL con estos comandos en orden:
+
+**1. Reconstruir:**
+```bash
+cd /mnt/c/Users/Admin/Documents/windsurf/muytuna && sudo docker buildx build --platform linux/arm64 --file Dockerfile.portable --target packager --tag muytuna-portable:latest --load --progress=plain . && CONTAINER_ID=$(sudo docker create muytuna-portable:latest) && sudo docker cp $CONTAINER_ID:/package/muytuna-app ./build/ && sudo docker rm $CONTAINER_ID && sudo chown -R $USER:$USER ./build/
+```
+
+**2. Comprimir:**
+```bash
+cd build && tar -czf muytuna-app.tar.gz muytuna-app && mv muytuna-app.tar.gz ../ && cd .. && ls -lh muytuna-app.tar.gz
+```
+
+**3. Enviar:**
+```bash
+scp -P 8022 muytuna-app.tar.gz u0_a193@192.168.0.223:~/
+```
+
+**4. En Xperia XA:**
+```bash
+cd ~
+rm -rf muytuna-app
+tar -xzf muytuna-app.tar.gz
+cd muytuna-app
+sed -i 's/\r$//' setup.sh start.sh stop.sh
+chmod +x setup.sh start.sh stop.sh
+./setup.sh
+./start.sh
+```
+
+Ahora SÍ debería mostrar:
+```
+✓ Hostname: 0.0.0.0
+- Network: http://192.168.0.223:3000
+```
+
+
+
+
+
+
+construir sin cache en docker:
+cd /mnt/c/Users/Admin/Documents/windsurf/muytuna && sudo docker buildx build --no-cache --platform linux/arm64 --file Dockerfile.portable --target packager --tag muytuna-portable:latest --load --progress=plain . && CONTAINER_ID=$(sudo docker create muytuna-portable:latest) && sudo docker cp $CONTAINER_ID:/package/muytuna-app ./build/ && sudo docker rm $CONTAINER_ID && sudo chown -R $USER:$USER ./build/
+
+ejecutar para todos en la red:
+HOSTNAME=0.0.0.0 PORT=3000 ./start.sh
+

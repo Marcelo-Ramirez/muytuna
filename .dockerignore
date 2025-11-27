@@ -1,0 +1,96 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-lock.yaml
+
+# Build outputs
+.next
+dist
+build
+out
+build-output
+
+# Git
+.git
+.gitignore
+.github
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Docker
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+*.tar.gz
+*.zip
+
+# Build scripts output
+muytuna-app/
+muytuna-app.tar.gz
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (se copiará manualmente el .env necesario)
+.env.local
+.env.development
+.env.test
+.env*.local
+
+# Testing
+coverage
+.nyc_output
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__
+__mocks__
+
+# Documentation
+*.md
+README.md
+CHANGELOG.md
+LICENSE
+
+# Docker
+Dockerfile
+Dockerfile.*
+.dockerignore
+docker-compose.yml
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Prisma migrations (opcional, comentar si las necesitas)
+# prisma/migrations
+
+# Keys y certificados
+*.key
+*.pem
+*.cert
+
+# Scripts innecesarios
+scripts
+
+# Cache
+.cache
+.turbo
+.eslintcache
