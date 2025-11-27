@@ -2,6 +2,17 @@
 import { Providers } from './providers';
 import { Toaster as Sonner } from "@/components/ui/sonner"; 
 import './globals.css';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'MuyTuna',
+  description: 'Sistema de gestión MuyTuna',
+  icons: {
+    icon: '/images/logos/logo.svg',
+    apple: '/images/logos/logo.svg',
+  },
+  manifest: '/manifest.json',
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

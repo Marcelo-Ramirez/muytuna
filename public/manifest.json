@@ -1,0 +1,17 @@
+{
+  "name": "MuyTuna",
+  "short_name": "MuyTuna",
+  "description": "Sistema de gestión MuyTuna",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/images/logos/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
