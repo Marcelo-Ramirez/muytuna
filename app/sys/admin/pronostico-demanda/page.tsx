@@ -7,7 +7,8 @@ import {
     Calendar,
     Zap,
     AlertTriangle,
-    Search
+    Search,
+    Printer
 } from 'lucide-react';
 // Componentes de Shadcn UI
 import { Button } from '@/components/ui/button';
@@ -66,11 +67,11 @@ const MetricTooltip = ({ abbreviation, fullName }: { abbreviation: string, fullN
     <TooltipProvider>
         <Tooltip>
             <TooltipTrigger asChild>
-                <span className="cursor-help border-b border-dashed border-gray-400">
+                <span className="cursor-help border-b border-dashed border-muted-foreground">
                     {abbreviation}
                 </span>
             </TooltipTrigger>
-            <TooltipContent className="bg-primary text-primary-foreground p-2 rounded shadow-lg text-sm">
+            <TooltipContent className="bg-popover text-popover-foreground p-2 rounded shadow-lg text-sm border">
                 {fullName}
             </TooltipContent>
         </Tooltip>
@@ -171,7 +172,7 @@ export default function DemandForecastPage() {
             {/* 1. Header */}
             <div>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground mb-1 flex items-center">
-                    <TrendingUp className="mr-3 h-7 w-7 text-primary" /> Pronóstico de Demanda
+                    <TrendingUp className="mr-3 h-7 w-7 text-primary" /> Pronóstico de Demanda - {new Date().toLocaleDateString('es-BO', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </h1>
                 <p className="text-base text-muted-foreground">Proyección de ventas futuras usando modelos cuantitativos.</p>
             </div>
@@ -212,15 +213,24 @@ export default function DemandForecastPage() {
                         </div>
                         <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                             {hasForecastsToShow && (
-                                <Button 
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                    onClick={() => {
-                                        window.location.href = `/sys/admin/aggregate-planning?productName=Todos%20los%20Productos&forecast=${totalForecast.toFixed(0)}`;
-                                    }}
-                                >
-                                    <Calendar className="mr-2 h-4 w-4" />
-                                    Planificación Global ({totalForecast.toFixed(0)} u.)
-                                </Button>
+                                <>
+                                    <Button 
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                        onClick={() => {
+                                            window.location.href = `/sys/admin/aggregate-planning?productName=Todos%20los%20Productos&forecast=${totalForecast.toFixed(0)}`;
+                                        }}
+                                    >
+                                        <Calendar className="mr-2 h-4 w-4" />
+                                        Planificación Global ({totalForecast.toFixed(0)} u.)
+                                    </Button>
+                                    <Button 
+                                        variant="outline"
+                                        onClick={() => window.print()}
+                                    >
+                                        <Printer className="mr-2 h-4 w-4" />
+                                        Imprimir
+                                    </Button>
+                                </>
                             )}
                             <div className="relative w-full md:w-64">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -237,22 +247,22 @@ export default function DemandForecastPage() {
                             <p className="mt-4 text-lg text-primary">Calculando pronósticos...</p>
                         </div>
                     ) : error ? (
-                        <div className="text-center py-12 bg-red-50/50">
+                        <div className="text-center py-12 bg-destructive/10 dark:bg-destructive/20">
                             <AlertTriangle className="h-8 w-8 mx-auto text-destructive" />
                             <p className="mt-4 text-lg font-semibold text-destructive">Error en la ejecución:</p>
                             <p className="text-sm text-muted-foreground mx-auto max-w-md">{error}</p>
                         </div>
                     ) : !hasForecastsToShow ? (
                         // Nuevo mensaje unificado para "Datos insuficientes"
-                         <div className="text-center py-12 bg-amber-50/50">
-                            <AlertTriangle className="h-8 w-8 mx-auto text-amber-500" />
-                            <p className="mt-4 text-lg font-semibold text-amber-700">¡Datos Insuficientes o Sin Resultados!</p>
+                         <div className="text-center py-12 bg-yellow-50/50 dark:bg-yellow-900/20">
+                            <AlertTriangle className="h-8 w-8 mx-auto text-yellow-600 dark:text-yellow-400" />
+                            <p className="mt-4 text-lg font-semibold text-yellow-700 dark:text-yellow-300">¡Datos Insuficientes o Sin Resultados!</p>
                             {allDataAreInsufficient ? (
                                 <p className="text-sm text-muted-foreground mx-auto max-w-md">Todos los productos calculados arrojaron datos nulos o insuficientes. Intente ampliar el rango de fechas para capturar más historial.</p>
                             ) : (
                                 <p className="text-sm text-muted-foreground mx-auto max-w-md">No se encontraron resultados para el rango de fechas seleccionado o no coinciden con el término de búsqueda.</p>
                             )}
-                            <p className="text-xs text-gray-400 mt-2">Rango Histórico: {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}</p>
+                            <p className="text-xs text-muted-foreground mt-2">Rango Histórico: {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}</p>
                         </div>
                     ) : (
                         // Muestra la tabla si hay datos
@@ -291,7 +301,7 @@ export default function DemandForecastPage() {
                                         return (
                                             <TableRow key={item.productId} className={cn(
                                                 // Mantener el color de fila opcional
-                                                (getMetric(item, 'SES_0.2', 'MAPE') ?? Infinity) < (getMetric(item, 'SMA_3', 'MAPE') ?? Infinity) ? 'bg-green-50/50' : ''
+                                                (getMetric(item, 'SES_0.2', 'MAPE') ?? Infinity) < (getMetric(item, 'SMA_3', 'MAPE') ?? Infinity) ? 'bg-green-50/50 dark:bg-green-900/20' : ''
                                             )}>
                                                 <TableCell className="font-medium">
                                                     <p>{item.productName}</p>
@@ -307,7 +317,7 @@ export default function DemandForecastPage() {
                                                         <p className="text-sm text-muted-foreground">-</p>
                                                     )}
                                                     {item.warning && (
-                                                        <div className="flex items-center justify-end mt-1 text-xs text-amber-600 font-medium">
+                                                        <div className="flex items-center justify-end mt-1 text-xs text-yellow-600 dark:text-yellow-400 font-medium">
                                                             <AlertTriangle className="h-3 w-3 mr-1" />
                                                             {item.warning}
                                                         </div>
@@ -316,7 +326,7 @@ export default function DemandForecastPage() {
 
                                                 <TableCell>
                                                     {bestModelKey && !bestModelKey.includes('Datos insuficientes') ? (
-                                                        <Badge variant="default" className="bg-purple-600 hover:bg-purple-700 text-xs">
+                                                        <Badge variant="default" className="bg-purple-600 hover:bg-purple-700 text-white text-xs">
                                                             {bestModelKey}
                                                         </Badge>
                                                     ) : (
@@ -330,7 +340,7 @@ export default function DemandForecastPage() {
                                                 <TableCell className="text-center font-mono">
                                                     {getMetric(item, 'SMA_3', 'NextForecast') !== undefined && getMetric(item, 'SMA_3', 'NextForecast') !== null ? (
                                                         <>
-                                                            <p className="font-semibold text-base text-gray-800 dark:text-gray-300">
+                                                            <p className="font-semibold text-base text-foreground">
                                                                 {getMetric(item, 'SMA_3', 'NextForecast')?.toFixed(0)} u.
                                                             </p>
                                                             <p className="text-muted-foreground text-xs">
@@ -344,7 +354,7 @@ export default function DemandForecastPage() {
                                                 <TableCell className="text-center font-mono">
                                                     {getMetric(item, 'SMA_6', 'NextForecast') !== undefined && getMetric(item, 'SMA_6', 'NextForecast') !== null ? (
                                                         <>
-                                                            <p className="font-semibold text-base text-gray-800 dark:text-gray-300">
+                                                            <p className="font-semibold text-base text-foreground">
                                                                 {getMetric(item, 'SMA_6', 'NextForecast')?.toFixed(0)} u.
                                                             </p>
                                                             <p className="text-muted-foreground text-xs">
@@ -360,7 +370,7 @@ export default function DemandForecastPage() {
                                                 <TableCell className="text-center font-mono">
                                                     {getMetric(item, 'WMA_3', 'NextForecast') !== undefined && getMetric(item, 'WMA_3', 'NextForecast') !== null ? (
                                                         <>
-                                                            <p className="font-semibold text-base text-gray-800 dark:text-gray-300">
+                                                            <p className="font-semibold text-base text-foreground">
                                                                 {getMetric(item, 'WMA_3', 'NextForecast')?.toFixed(0)} u.
                                                             </p>
                                                             <p className="text-muted-foreground text-xs">
@@ -374,7 +384,7 @@ export default function DemandForecastPage() {
                                                 <TableCell className="text-center font-mono">
                                                     {getMetric(item, 'SES_0.2', 'NextForecast') !== undefined && getMetric(item, 'SES_0.2', 'NextForecast') !== null ? (
                                                         <>
-                                                            <p className="font-semibold text-base text-gray-800 dark:text-gray-300">
+                                                            <p className="font-semibold text-base text-foreground">
                                                                 {getMetric(item, 'SES_0.2', 'NextForecast')?.toFixed(0)} u.
                                                             </p>
                                                             <p className="text-muted-foreground text-xs">

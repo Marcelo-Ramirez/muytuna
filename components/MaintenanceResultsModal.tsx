@@ -10,7 +10,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Clock, Zap, Hourglass, BarChart3, AlertCircle, RefreshCcw, TriangleAlert, HandPlatter,LucideIcon } from 'lucide-react';
+import { Clock, Zap, Hourglass, BarChart3, AlertCircle, RefreshCcw, TriangleAlert, HandPlatter, LucideIcon, Printer } from 'lucide-react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; 
 import {
@@ -203,8 +203,12 @@ export function MaintenanceResultsModal({ isOpen, onClose }: MaintenanceResultsM
                     </div>
                 </div>
 
-                <DialogFooter className="mt-6">
-                    <Button onClick={onClose}>Cerrar Historial</Button>
+                <DialogFooter className="mt-6 flex-col sm:flex-row gap-2">
+                    <Button variant="outline" onClick={() => window.print()} className="w-full sm:w-auto">
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir
+                    </Button>
+                    <Button onClick={onClose} className="w-full sm:w-auto">Cerrar</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

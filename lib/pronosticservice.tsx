@@ -1,6 +1,5 @@
 
-import { prisma } from '@/lib/db'; // ¡Verifica esta ruta!
-
+import { prisma } from '@/lib/db';
 
 interface RawSale {
     productId: number;
@@ -75,7 +74,8 @@ export const ForecastService = {
             rawSales = globalRawSalesCache;
         } else {
             // Consulta la DB. Usamos 'dbResults' temporalmente
-            const dbResults = await prisma.saleProduct.findMany({
+            // FIXED: Use OrderItem instead of SaleProduct
+            const dbResults = await prisma.orderItem.findMany({
                 select: { productId: true, createdAt: true, quantity: true },
                 orderBy: { createdAt: 'asc' }
             });
