@@ -91,9 +91,14 @@ export default function CatalogPage() {
             const data: ProductResponse = await res.json();
             
             if (data.success && Array.isArray(data.products)) {
-                setProducts(prevProducts => page === 1 ? data.products : [...prevProducts, ...data.products]);
-                const currentTotal = page === 1 ? data.products.length : products.length + data.products.length;
-                setHasMore(currentTotal < data.totalCount);
+                setProducts(prevProducts => {
+                    const newProducts = page === 1 ? data.products : [...prevProducts, ...data.products];
+                    return newProducts;
+                });
+                setHasMore(prev => {
+                    const currentTotal = page === 1 ? data.products.length : (page * PAGE_LIMIT);
+                    return currentTotal < data.totalCount;
+                });
             } else {
                 setProducts([]); 
                 setHasMore(false);
@@ -107,7 +112,7 @@ export default function CatalogPage() {
             setLoading(false);
             setIsInitialLoad(false);
         }
-    }, [page, searchTerm, activeFilter, isInitialLoad, products.length]); 
+    }, [page, searchTerm, activeFilter, isInitialLoad]); 
 
     // 2. Control de cambios en filtros y búsqueda (Llama a fetchProducts)
     useEffect(() => {
