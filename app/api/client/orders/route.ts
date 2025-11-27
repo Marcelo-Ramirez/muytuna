@@ -61,6 +61,34 @@ export async function POST(req: Request) {
     if (!cartItems || cartItems.length === 0) {
       return NextResponse.json({ error: 'Carrito vacio.' }, { status: 400 });
     }
+    
+    // ✅ VERIFICAR SI YA TIENE UN PEDIDO PENDIENTE
+    const existingPendingOrder = await prisma.order.findFirst({
+      where: {
+        userId,
+        status: 'pending'
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        totalAmount: true,
+        createdAt: true
+      }
+    });
+    
+    if (existingPendingOrder) {
+      return NextResponse.json({ 
+        error: 'Ya tienes un pedido pendiente',
+        code: 'PENDING_ORDER_EXISTS',
+        pendingOrder: {
+          id: existingPendingOrder.id,
+          orderNumber: existingPendingOrder.orderNumber,
+          totalAmount: existingPendingOrder.totalAmount,
+          createdAt: existingPendingOrder.createdAt
+        }
+      }, { status: 409 }); // 409 Conflict
+    }
+    
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { phone: true } });
     const productIds = cartItems.map(item => item.productId);
     const products = await prisma.product.findMany({
@@ -82,7 +110,7 @@ export async function POST(req: Request) {
       subtotal += itemSubtotal;
       orderItemsData.push({ productId: item.productId, quantity: item.quantity, unitPrice: product.pricePerUnit, subtotal: itemSubtotal });
     }
-    const shippingCost = 3.00;
+    const shippingCost = 0.00; // Gratis por defecto (Recoger en tienda)
     const taxAmount = 0; // Sin impuestos
     const totalAmount = subtotal + shippingCost;
     const order = await prisma.$transaction(async (tx) => {

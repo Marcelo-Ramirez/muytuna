@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { ArrowLeft, Minus, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Loader2, AlertTriangle, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { getProductImage } from '@/components/imageMap/productImages';
 
@@ -19,12 +20,21 @@ interface CartItem {
 
 type Cart = Record<number, CartItem>;
 
+interface PendingOrder {
+  id: number;
+  orderNumber: string;
+  totalAmount: number;
+  createdAt: string;
+}
+
 export default function CartPage() {
   const router = useRouter();
   const { status } = useSession();
   const [cart, setCart] = useState<Cart>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPendingOrderModal, setShowPendingOrderModal] = useState(false);
+  const [pendingOrder, setPendingOrder] = useState<PendingOrder | null>(null);
 
   // Cargar carrito desde localStorage
   useEffect(() => {
@@ -124,6 +134,13 @@ export default function CartPage() {
       }
 
       if (!res.ok) {
+        // Verificar si es el error de pedido pendiente
+        if (data.code === 'PENDING_ORDER_EXISTS' && data.pendingOrder) {
+          setPendingOrder(data.pendingOrder);
+          setShowPendingOrderModal(true);
+          setIsSubmitting(false);
+          return;
+        }
         throw new Error(data.error || 'Error al crear el pedido');
       }
 
@@ -138,6 +155,13 @@ export default function CartPage() {
       alert(error instanceof Error ? error.message : 'Error al procesar el pedido');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Ir al pedido pendiente
+  const goToPendingOrder = () => {
+    if (pendingOrder) {
+      router.push(`/orders/${pendingOrder.id}`);
     }
   };
 
@@ -254,6 +278,60 @@ export default function CartPage() {
           </button>
         </div>
       )}
+
+      {/* Modal de Pedido Pendiente */}
+      <Dialog open={showPendingOrderModal} onOpenChange={setShowPendingOrderModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <DialogTitle className="text-xl">Ya tienes un pedido pendiente</DialogTitle>
+            </div>
+            <DialogDescription className="text-base text-neutral-600 pt-2">
+              Solo puedes tener un pedido pendiente a la vez. Para crear un nuevo pedido, primero debes completar o cancelar tu pedido actual.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingOrder && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2 text-amber-800">
+                <ShoppingBag className="w-4 h-4" />
+                <span className="font-semibold">Pedido {pendingOrder.orderNumber}</span>
+              </div>
+              <div className="text-sm text-amber-700">
+                <p>Total: <span className="font-bold">Bs {pendingOrder.totalAmount.toFixed(2)}</span></p>
+                <p className="text-xs text-amber-600 mt-1">
+                  Creado: {new Date(pendingOrder.createdAt).toLocaleDateString('es-BO', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-col gap-2 mt-4">
+            <Button
+              onClick={goToPendingOrder}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              Ver mi pedido pendiente
+            </Button>
+            <Button
+              onClick={() => setShowPendingOrderModal(false)}
+              variant="outline"
+              className="w-full"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { compareTwoStrings } from "string-similarity";
 
 const YAPE_API_KEY = process.env.YAPE_API_KEY || "e8B4fG9tPz6jL1wA0sD2hY5uQ7xN3rK"; 
 
@@ -83,109 +84,123 @@ function normalizeName(name: string): string {
     .replace(/\s+/g, ' '); // Normalizar espacios
 }
 
-// Función para reordenar nombre según formato boliviano
-// En Bolivia: 2 apellidos + 1 o 2 nombres
-// Esta función convierte cualquier orden a: APELLIDO1 APELLIDO2 NOMBRE(S)
-function reorderBolivianName(name: string, isFromQR: boolean = false): string {
-  const normalized = normalizeName(name);
-  const words = normalized.split(' ').filter(w => w.length > 0);
-  
-  // Si tiene menos de 3 palabras, no se puede reordenar
-  if (words.length < 3) {
-    console.warn(`⚠️ Nombre con menos de 3 palabras: ${name}`);
-    return normalized;
-  }
-  
-  if (words.length === 3) {
-    // 3 palabras = 2 apellidos + 1 nombre
-    if (isFromQR) {
-      // QR: "APELLIDO1 APELLIDO2 NOMBRE"
-      return normalized; // Ya está en el formato correcto
-    } else {
-      // Usuario: "NOMBRE APELLIDO1 APELLIDO2"
-      // Reordenar: últimas 2 son apellidos, primera es nombre
-      return `${words[1]} ${words[2]} ${words[0]}`;
-    }
-  }
-  
-  if (words.length === 4) {
-    // 4 palabras = 2 apellidos + 2 nombres
-    if (isFromQR) {
-      // QR: "APELLIDO1 APELLIDO2 NOMBRE1 NOMBRE2"
-      return normalized; // Ya está en el formato correcto
-    } else {
-      // Usuario: "NOMBRE1 NOMBRE2 APELLIDO1 APELLIDO2"
-      // Reordenar: últimas 2 son apellidos, primeras 2 son nombres
-      return `${words[2]} ${words[3]} ${words[0]} ${words[1]}`;
-    }
-  }
-  
-  // Si tiene más de 4 palabras
-  if (isFromQR) {
-    // QR: primeras 2 son apellidos, resto son nombres
-    return normalized;
-  } else {
-    // Usuario: últimas 2 son apellidos, resto son nombres
-    const apellidos = words.slice(-2);
-    const nombres = words.slice(0, -2);
-    return `${apellidos.join(' ')} ${nombres.join(' ')}`;
-  }
-}
+/**
+ * ALGORITMO ROBUSTO DE COMPARACIÓN DE NOMBRES
+ * 
+ * No asume ningún orden específico de palabras (nombres/apellidos).
+ * Compara todas las palabras sin importar su posición.
+ * Usa múltiples estrategias para máxima flexibilidad.
+ */
+function namesMatch(name1: string, name2: string, minSimilarity: number = 0.75): boolean {
+  const normalized1 = normalizeName(name1);
+  const normalized2 = normalizeName(name2);
 
-// Función para comparar nombres con tolerancia (permite coincidencias parciales)
-function namesMatch(name1: string, name2: string, threshold: number = 0.8, name1FromQR: boolean = true): boolean {
-  // Reordenar ambos nombres al formato boliviano estándar
-  const reordered1 = reorderBolivianName(name1, name1FromQR);
-  const reordered2 = reorderBolivianName(name2, false); // name2 es siempre del usuario (DB)
+  console.log(`   🔄 Comparación avanzada de nombres:`);
+  console.log(`      Nombre 1: "${name1}" → "${normalized1}"`);
+  console.log(`      Nombre 2: "${name2}" → "${normalized2}"`);
 
-  console.log(`   🔄 Comparación de nombres:`);
-  console.log(`      Original 1: ${name1} ${name1FromQR ? '(QR)' : '(Usuario)'}`);
-  console.log(`      Reordenado 1: ${reordered1}`);
-  console.log(`      Original 2: ${name2} (Usuario)`);
-  console.log(`      Reordenado 2: ${reordered2}`);
-
-  // Coincidencia exacta después de reordenar
-  if (reordered1 === reordered2) {
-    console.log(`      ✅ Coincidencia EXACTA`);
+  // ESTRATEGIA 1: Coincidencia exacta
+  if (normalized1 === normalized2) {
+    console.log(`      ✅ COINCIDENCIA EXACTA`);
     return true;
   }
 
-  // Verificar si uno contiene al otro (para nombres parciales)
-  if (reordered1.includes(reordered2) || reordered2.includes(reordered1)) {
-    console.log(`      ✅ Coincidencia por CONTENCIÓN`);
+  // ESTRATEGIA 2: Similitud general usando Dice coefficient (string-similarity)
+  const overallSimilarity = compareTwoStrings(normalized1, normalized2);
+  console.log(`      📊 Similitud general: ${(overallSimilarity * 100).toFixed(1)}%`);
+  
+  if (overallSimilarity >= minSimilarity) {
+    console.log(`      ✅ COINCIDENCIA POR SIMILITUD GENERAL (${(overallSimilarity * 100).toFixed(1)}%)`);
     return true;
   }
 
-  // Calcular similitud por palabras (los apellidos son más importantes)
-  const words1 = reordered1.split(' ');
-  const words2 = reordered2.split(' ');
-  
-  // Verificar que al menos los 2 apellidos coincidan (primeras 2 palabras)
-  const apellidosMatch = words1.length >= 2 && words2.length >= 2 &&
-                         words1[0] === words2[0] && words1[1] === words2[1];
-  
-  if (!apellidosMatch) {
-    console.log(`      ❌ Apellidos NO coinciden`);
-    return false;
-  }
-  
-  console.log(`      ✅ Apellidos coinciden: ${words1[0]} ${words1[1]}`);
-  
-  // Si los apellidos coinciden, verificar nombres (más flexible)
-  let matchingWords = 2; // Ya contamos los 2 apellidos
-  for (let i = 2; i < words1.length; i++) {
-    for (let j = 2; j < words2.length; j++) {
-      if (words1[i] === words2[j]) {
-        matchingWords++;
-        break;
+  // ESTRATEGIA 3: Comparación por palabras individuales (orden independiente)
+  const words1 = normalized1.split(' ').filter(w => w.length > 0);
+  const words2 = normalized2.split(' ').filter(w => w.length > 0);
+
+  console.log(`      Palabras 1: [${words1.join(', ')}]`);
+  console.log(`      Palabras 2: [${words2.join(', ')}]`);
+
+  // Contar cuántas palabras de name1 aparecen en name2 (y viceversa)
+  let matchedWords1 = 0;
+  let matchedWords2 = 0;
+  const matchDetails: string[] = [];
+
+  for (const word1 of words1) {
+    // Buscar coincidencia exacta
+    if (words2.includes(word1)) {
+      matchedWords1++;
+      matchDetails.push(`"${word1}" ✓`);
+      continue;
+    }
+    
+    // Buscar coincidencia parcial (similitud >= 85%)
+    let bestMatch = 0;
+    let bestWord = '';
+    for (const word2 of words2) {
+      const similarity = compareTwoStrings(word1, word2);
+      if (similarity > bestMatch) {
+        bestMatch = similarity;
+        bestWord = word2;
       }
     }
+    
+    if (bestMatch >= 0.85) {
+      matchedWords1++;
+      matchDetails.push(`"${word1}" ≈ "${bestWord}" (${(bestMatch * 100).toFixed(0)}%)`);
+    } else {
+      matchDetails.push(`"${word1}" ✗`);
+    }
   }
 
-  const similarity = matchingWords / Math.max(words1.length, words2.length);
-  console.log(`      Similitud: ${(similarity * 100).toFixed(0)}% (umbral: ${(threshold * 100).toFixed(0)}%)`);
+  for (const word2 of words2) {
+    // Buscar coincidencia exacta
+    if (words1.includes(word2)) {
+      matchedWords2++;
+      continue;
+    }
+    
+    // Buscar coincidencia parcial (similitud >= 85%)
+    let bestMatch = 0;
+    for (const word1 of words1) {
+      const similarity = compareTwoStrings(word1, word2);
+      if (similarity > bestMatch) {
+        bestMatch = similarity;
+      }
+    }
+    
+    if (bestMatch >= 0.85) {
+      matchedWords2++;
+    }
+  }
+
+  console.log(`      Coincidencias: ${matchDetails.join(', ')}`);
+
+  // Calcular porcentaje de coincidencia bidireccional
+  const coverage1 = words1.length > 0 ? matchedWords1 / words1.length : 0;
+  const coverage2 = words2.length > 0 ? matchedWords2 / words2.length : 0;
+  const wordMatchScore = (coverage1 + coverage2) / 2;
+
+  console.log(`      📊 Cobertura palabras: ${(coverage1 * 100).toFixed(0)}% (1→2) | ${(coverage2 * 100).toFixed(0)}% (2→1)`);
+  console.log(`      📊 Puntuación final: ${(wordMatchScore * 100).toFixed(1)}%`);
+
+  // ESTRATEGIA 4: Verificación estricta de apellidos comunes
+  // Si al menos 2 palabras coinciden exactamente (probablemente apellidos)
+  const exactMatches = words1.filter(w => words2.includes(w)).length;
   
-  return similarity >= threshold;
+  if (exactMatches >= 2 && wordMatchScore >= 0.6) {
+    console.log(`      ✅ COINCIDENCIA POR APELLIDOS COMUNES (${exactMatches} palabras exactas + ${(wordMatchScore * 100).toFixed(0)}% cobertura)`);
+    return true;
+  }
+
+  // CRITERIO FINAL: Puntuación combinada
+  if (wordMatchScore >= minSimilarity) {
+    console.log(`      ✅ COINCIDENCIA POR PALABRAS (${(wordMatchScore * 100).toFixed(1)}%)`);
+    return true;
+  }
+
+  console.log(`      ❌ SIN COINCIDENCIA (similitud: ${(wordMatchScore * 100).toFixed(1)}% < ${(minSimilarity * 100).toFixed(0)}%)`);
+  return false;
 }
 
 export async function POST(req: NextRequest) {
@@ -227,7 +242,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`📋 [YAPE] Datos extraídos:`);
     console.log(`   Nombre original: ${payerName}`);
-    console.log(`   Nombre reordenado: ${reorderBolivianName(payerName, true)}`);
+    console.log(`   Nombre normalizado: ${normalizeName(payerName)}`);
     console.log(`   Monto: Bs ${amount.toFixed(2)}`);
 
     // 5. BUSCAR PEDIDO PENDIENTE QUE COINCIDA
@@ -253,7 +268,7 @@ export async function POST(req: NextRequest) {
     for (const order of pendingOrders) {
       if (!order.payerName) continue;
 
-      const nameMatches = namesMatch(payerName, order.payerName, 0.8, true); // true = nombre viene del QR
+      const nameMatches = namesMatch(payerName, order.payerName, 0.75); // 75% de similitud mínima
       const amountMatches = Math.abs(order.totalAmount - amount) <= tolerance;
 
       console.log(`   Comparando con pedido #${order.orderNumber}:`);

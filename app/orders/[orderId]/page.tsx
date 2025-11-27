@@ -108,8 +108,8 @@ export default function OrderDetailPage() {
         }
         const data = await res.json();
         setOrder(data.order);
-        // Inicializar wantsDelivery basado en si tiene dirección o costo de envío
-        setWantsDelivery(!!data.order.shippingAddress || data.order.shippingCost > 0);
+        // Inicializar wantsDelivery: false por defecto (Recoger en tienda)
+        setWantsDelivery(false);
         // Inicializar teléfono editado
         setEditedPhone(data.order.contactPhone || data.order.user?.phone || '');
         // Inicializar items editados
