@@ -18,7 +18,7 @@ export default function SystemLayout({
   }
 
   // Definir las clases de margen y ancho en Tailwind
-  const marginLeftClass = isSidebarCollapsed ? 'ml-16' : 'ml-64' // 64px y 256px de Tailwind
+  const marginLeftClass = isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64' // apply margin only on md+
 
   return (
     // Reemplaza Flex: Contenedor principal con Flexbox y altura mínima
@@ -36,7 +36,8 @@ export default function SystemLayout({
         className={`
           flex-1 flex flex-col 
           ${marginLeftClass} 
-          transition-all duration-300 ease-in-out
+          transition-all duration-300 ease-in-out mt-14
+          md:mt-0
         `} // Flex-1, Flex-col, Margen dinámico y transición
       >
         {/* Reemplaza Box: Área de contenido con padding */}

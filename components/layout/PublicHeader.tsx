@@ -318,7 +318,7 @@ export function PublicHeader() {
               </div>
 
               <div className="hidden md:flex">
-                <Button variant="outline" className="relative h-12 w-12 rounded-full shadow-none hover:bg-zinc-200/50 dark:hover:bg-zinc-800 border-zinc-300 dark:border-zinc-600" onClick={() => globalThis.dispatchEvent(new Event('openCartModal'))} size="icon" title="Ver Carrito">
+                <Button variant="outline" className="relative h-12 w-12 rounded-full shadow-none hover:bg-zinc-200/50 dark:hover:bg-zinc-800 border-zinc-300 dark:border-zinc-600" onClick={() => router.push('/cart')} size="icon" title="Ver Carrito">
                   <ShoppingBag className="h-6 w-6 text-foreground" />
                   {totalItemsInCart > 0 && (
                     <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-zinc-900 bg-yellow-500 dark:bg-primary rounded-full">
@@ -348,7 +348,7 @@ export function PublicHeader() {
 
       {pathname.includes('/catalog') && (
         <div className="md:hidden fixed top-4 right-4 z-[55]">
-          <Button variant="outline" className="relative h-12 w-12 rounded-full shadow-md border-zinc-300 dark:border-zinc-600 hover:bg-zinc-200/50 dark:hover:bg-zinc-800" onClick={() => globalThis.dispatchEvent(new Event('openCartModal'))} size="icon" title="Ver Carrito">
+          <Button variant="outline" className="relative h-12 w-12 rounded-full shadow-md border-zinc-300 dark:border-zinc-600 hover:bg-zinc-200/50 dark:hover:bg-zinc-800" onClick={() => router.push('/cart')} size="icon" title="Ver Carrito">
             <ShoppingBag className="h-6 w-6 text-foreground" />
             {totalItemsInCart > 0 && (
               <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-zinc-900 bg-yellow-500 dark:bg-primary rounded-full">
@@ -396,7 +396,7 @@ export function PublicHeader() {
             <MobileNavList isActive={isActive} onNavigate={(href) => { router.push(href); setIsSidebarOpen(false); }} isAuthenticated={status === 'authenticated'} activeClasses={activeClasses} />
 
             {status === 'authenticated' && (
-              <button onClick={() => { signOut({ callbackUrl: `${globalThis.location.origin}` }); setIsSidebarOpen(false); }} className="flex items-center gap-3 w-full text-left p-2 rounded-md hover:bg-primary transition-colors text-foreground">
+              <button onClick={() => { signOut({ callbackUrl: "/" }); setIsSidebarOpen(false); }} className="flex items-center gap-3 w-full text-left p-2 rounded-md hover:bg-primary transition-colors text-foreground">
                 <LogOut className="h-5 w-5" />
                 <span>Cerrar Sesión</span>
               </button>

@@ -1,94 +1,108 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getServerSession } from "next-auth"; // Asumo que usas NextAuth para el usuario
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
+// POST: Confirmar una venta (cambiar estado a 'completed')
 export async function POST(req: Request) {
-    // 1. Obtener la sesión y validar el usuario (Asumido)
-    const session = await getServerSession();
-    if (!session || !session.user || !session.user.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-    const userId = session.user.id; 
-    
-    // 2. Obtener y validar el body
-    const { orderClientId: orderClientIdRaw } = await req.json();
-    const numericOrderClientId = parseInt(orderClientIdRaw as string);
+  // 1. Obtener la sesión y validar el usuario
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user || !session.user.id) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
 
-    if (isNaN(numericOrderClientId)) {
-        return NextResponse.json({ error: "ID de pedido inválido" }, { status: 400 });
-    }
+  const numericUserId = Number(session.user.id);
+  if (isNaN(numericUserId)) {
+    return NextResponse.json({ error: "User ID inválido" }, { status: 400 });
+  }
 
-    try {
-        // Ejecutar la lógica de venta dentro de una Transacción
-        const saleResult = await prisma.$transaction(async (tx) => {
-            
-            // A. Obtener el pedido y su producto asociado para chequear stock y estado
-            const orderClient = await tx.orderClient.findUnique({
-                where: { id: numericOrderClientId },
-                include: { 
-                    product: { select: { id: true, stock: true } },
-                    saleOrder: { select: { id: true } } // Para verificar existencia de venta previa
-                }
-            });
+  // 2. Obtener y validar el body
+  const body = await req.json();
+  const orderId = Number(body.orderId);
 
-            if (!orderClient) {
-                throw new Error("Pedido no encontrado.");
+  if (isNaN(orderId)) {
+    return NextResponse.json({ error: "ID de pedido inválido" }, { status: 400 });
+  }
+
+  try {
+    // Ejecutar la lógica de venta dentro de una Transacción
+    const saleResult = await prisma.$transaction(async (tx) => {
+      // A. Obtener el pedido con sus items
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            include: {
+              product: true
             }
-            
-            // B. Prevenir el error P2002: Ya vendido
-            if (orderClient.saleOrder) {
-                // Si saleOrder ya existe, lanza un error para prevenir el P2002
-                throw new Error("P2002: Este pedido ya ha sido confirmado como venta.");
-            }
-            
-            // C. Prevenir la falta de Stock
-            if (!orderClient.product || orderClient.product.stock < orderClient.quantity) {
-                // Esto generará la notificación "verifique el stock" en el frontend si capturas el mensaje
-                throw new Error("Verifique el stock. Cantidad solicitada supera el stock disponible.");
-            }
-            
-            // D. Ejecutar la VENTA y actualización de Stock
-            
-            // 1. Crear el registro SaleOrder
-            const saleOrder = await tx.saleOrder.create({
-                data: {
-                    userId: userId,
-                    orderClientId: numericOrderClientId,
-                    totalCostOrder: orderClient.quantity * orderClient.product.pricePerUnit, // Asumiendo que el precio viene de OrderClient/Product
-                }
-            });
+          }
+        }
+      });
 
-            // 2. Actualizar el estado del OrderClient a 'sale'
-            await tx.orderClient.update({
-                where: { id: numericOrderClientId },
-                data: { status: 'sale' }
-            });
+      if (!order) {
+        throw new Error("Pedido no encontrado.");
+      }
 
-            // 3. Reducir el stock del producto
-            await tx.product.update({
-                where: { id: orderClient.product.id },
-                data: {
-                    stock: {
-                        decrement: orderClient.quantity,
-                    }
-                }
-            });
-            
-            return saleOrder;
+      if (order.status === 'completed') {
+        throw new Error("Este pedido ya ha sido completado.");
+      }
+
+      if (order.status === 'cancelled') {
+        throw new Error("No se puede completar un pedido cancelado.");
+      }
+
+      // B. Verificar stock de todos los productos
+      for (const item of order.items) {
+        if (item.product.currentQuantity < item.quantity) {
+          throw new Error(`Stock insuficiente para ${item.product.name}. Disponible: ${item.product.currentQuantity}, Solicitado: ${item.quantity}`);
+        }
+      }
+
+      // C. Reducir el stock de cada producto
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { 
+            currentQuantity: { decrement: item.quantity } 
+          },
         });
+      }
 
-        return NextResponse.json({ success: true, saleOrder: saleResult });
+      // D. Actualizar el estado del pedido a 'completed'
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { 
+          status: "completed",
+          paidAt: order.paidAt || new Date() // Si no estaba pagado, marcar como pagado ahora
+        },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  name: true,
+                  type: true,
+                  flavor: true
+                }
+              }
+            }
+          },
+          user: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
 
-    } catch (error) {
-        // Manejar errores de la transacción (P2002 o Stock)
-        console.error("Error en la venta:", error);
+      return updatedOrder;
+    });
 
-        // Si es el error P2002 o el error de stock que definimos, se devuelve un 400
-        const errorMessage = error instanceof Error ? error.message : "Error desconocido al procesar la venta.";
-        
-        return NextResponse.json(
-            { error: errorMessage },
-            { status: 400 } // Usar 400 para errores de lógica de negocio o validación (incluyendo P2002 prevenido)
-        );
-    }
+    return NextResponse.json({ success: true, order: saleResult });
+  } catch (error) {
+    console.error("Error en la venta:", error);
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido al procesar la venta.";
+    return NextResponse.json({ error: errorMessage }, { status: 400 });
+  }
 }

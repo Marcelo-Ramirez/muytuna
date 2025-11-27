@@ -1,7 +1,7 @@
 // components/auth/ClientRegisterModal.tsx (CORREGIDO)
 'use client'
 
-import React, { useState } from 'react' // Import React for FormEvent
+import React, { useState, Suspense } from 'react' // Import React for FormEvent
 import { useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -24,8 +24,14 @@ interface FormErrors {
     [key: string]: string | undefined; // Permite acceder con claves string
 } 
 
+interface ClientRegisterModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onOpenLogin: () => void;
+}
 
-export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: boolean, onClose: () => void, onOpenLogin: () => void }) {
+// Componente interno que usa useSearchParams
+function ClientRegisterModalContent({ isOpen, onClose, onOpenLogin }: ClientRegisterModalProps) {
     // ✅ Estado inicial con confirmPassword
     const [formData, setFormData] = useState<FormData>({ userName: '', phone: '', password: '', confirmPassword: '' })
     const [isLoading, setIsLoading] = useState(false)
@@ -205,5 +211,14 @@ export function ClientRegisterModal({ isOpen, onClose, onOpenLogin }: { isOpen: 
                 </div>
             </DialogContent>
         </Dialog>
+    )
+}
+
+// Componente exportado con Suspense
+export function ClientRegisterModal(props: ClientRegisterModalProps) {
+    return (
+        <Suspense fallback={null}>
+            <ClientRegisterModalContent {...props} />
+        </Suspense>
     )
 }

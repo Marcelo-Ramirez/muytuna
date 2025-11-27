@@ -38,4 +38,29 @@ export const productImages: Record<string, any> = {
   '/images/products/pulpa/p-zanahoria.png': pZanahoria,
 };
 
+// Función para obtener imagen por nombre de producto
+export function getProductImage(productName: string): string {
+  const nameLower = productName.toLowerCase();
+  
+  // Detectar tipo (gomita o pulpa)
+  const isGomita = nameLower.includes('gomita');
+  const isPulpa = nameLower.includes('pulpa');
+  const prefix = isGomita ? 'g' : isPulpa ? 'p' : 'g';
+  const folder = isGomita ? 'gomita' : isPulpa ? 'pulpa' : 'gomita';
+  
+  // Detectar sabor
+  const flavors = ['beterraga', 'frutilla', 'limon', 'mandarina', 'manzana', 'manzanilla', 'tuna', 'zanahoria'];
+  let flavor = 'tuna'; // default
+  
+  for (const f of flavors) {
+    if (nameLower.includes(f)) {
+      flavor = f;
+      break;
+    }
+  }
+  
+  const key = `/images/products/${folder}/${prefix}-${flavor}.png`;
+  return productImages[key] || gTuna;
+}
+
 export default productImages;

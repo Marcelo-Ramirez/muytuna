@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 
+// Configurar NEXTAUTH_URL dinámicamente si no está establecida
+if (!process.env.NEXTAUTH_URL && process.env.NODE_ENV === 'production') {
+  // En producción sin NEXTAUTH_URL, NextAuth usará el host de la request
+  console.log('⚠️  NEXTAUTH_URL no configurada, usando detección automática de dominio');
+}
+
 const nextConfig: NextConfig = {
   // Deshabilitar completamente los overlays de desarrollo
   compiler: {

@@ -1,7 +1,7 @@
 // components/auth/ClientLoginModal.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,8 @@ interface ClientLoginModalProps {
     onOpenRegister: () => void; // Función para abrir el modal de registro
 }
 
-export function ClientLoginModal({ isOpen, onClose, onLoginSuccess, onOpenRegister }: ClientLoginModalProps) {
+// Componente interno que usa useSearchParams
+function ClientLoginModalContent({ isOpen, onClose, onLoginSuccess, onOpenRegister }: ClientLoginModalProps) {
     const [formData, setFormData] = useState({ userName: '', password: '' })
     const [isLoading, setIsLoading] = useState(false)
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
@@ -166,5 +167,14 @@ export function ClientLoginModal({ isOpen, onClose, onLoginSuccess, onOpenRegist
                 </div>
             </DialogContent>
         </Dialog>
+    )
+}
+
+// Componente exportado con Suspense
+export function ClientLoginModal(props: ClientLoginModalProps) {
+    return (
+        <Suspense fallback={null}>
+            <ClientLoginModalContent {...props} />
+        </Suspense>
     )
 }

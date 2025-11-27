@@ -10,15 +10,13 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Iniciando seed de la base de datos...');
 
-  // Limpiar base de datos
+  // Limpiar base de datos (orden importante por FKs)
   console.log('🧹 Limpiando base de datos...');
   await prisma.productMovement.deleteMany();
-  await prisma.saleProduct.deleteMany();
-  await prisma.saleOrder.deleteMany();
-  await prisma.orderClient.deleteMany();
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
   await prisma.inventoryMovement.deleteMany();
   await prisma.ingredientEOQModel.deleteMany();
-  await prisma.productBatch.deleteMany();
   await prisma.productBatch.deleteMany();
   await prisma.product.deleteMany();
   await prisma.ingredient.deleteMany();
@@ -34,8 +32,8 @@ async function main() {
   // 3. Seed Products
   const { products } = await seedProducts(prisma);
 
-  // 4. Seed Orders (requiere clients, products, salesStaff)
-  const { orderClients, saleOrderCount } = await seedOrders(prisma, clients, products, salesStaff);
+  // 4. Seed Orders (Order + OrderItem) - requiere clients, products, salesStaff
+  const { orders, orderItemsCount } = await seedOrders(prisma, clients, products, salesStaff);
 
   // 5. Seed Product Movements (requiere products, inventoryStaff)
   await seedProductMovements(prisma, products, inventoryStaff);
@@ -43,12 +41,19 @@ async function main() {
   console.log('');
   console.log('🎉 ¡Seed completado exitosamente!');
   console.log('═══════════════════════════════════════');
-  console.log('🔑 CREDENCIALES DE ACCESO (Password: prueba123)');
+  console.log('📊 RESUMEN DE DATOS');
   console.log('---------------------------------------');
-  console.log('👑 ADMINS: user1, user2');
-  console.log('💼 VENTAS: user3, user4');
-  console.log('📦 ALMACÉN: user5, user6');
-  console.log('👤 CLIENTES: user7 ... user20');
+  console.log(`👥 Usuarios: ${users.length}`);
+  console.log(`🧪 Ingredientes: ${ingredients.length}`);
+  console.log(`🍰 Productos: ${products.length}`);
+  console.log(`📦 Órdenes: ${orders.length} (${orderItemsCount} items)`);
+  console.log('');
+  console.log('🔑 CREDENCIALES DE ACCESO (Password: 123123)');
+  console.log('---------------------------------------');
+  console.log('👑 ADMINS:   admin1, admin2');
+  console.log('💼 VENTAS:   ventas1, ventas2, ventas3');
+  console.log('📦 ALMACÉN:  almacen1, almacen2');
+  console.log('👤 CLIENTES: cliente1 ... cliente10');
   console.log('═══════════════════════════════════════');
 }
 

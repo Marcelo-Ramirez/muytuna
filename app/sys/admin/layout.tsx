@@ -19,7 +19,7 @@ export default function SystemLayout({
   // ELIMINADA la variable sidebarWidth que no se usaba
 
   // Solo necesitamos la clase de margen para el contenido principal
-  const marginLeftClass = isSidebarCollapsed ? 'ml-16' : 'ml-64' // Clases de margen (w-16 -> ml-16, w-64 -> ml-64)
+  const marginLeftClass = isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64' // Clases de margen (w-16 -> ml-16, w-64 -> ml-64)
 
   return (
     // Contenedor principal usando Flexbox

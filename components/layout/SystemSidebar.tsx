@@ -1,5 +1,6 @@
-'use client';
+"use client";
 
+import { useState } from 'react';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 import {
@@ -53,6 +54,7 @@ const iconMap = {
 
 // --- Componente ---
 export default function SystemSidebar({ role, isCollapsed = false, onToggle }: SystemSidebarProps) {
+  const [showMobile, setShowMobile] = useState(false);
 
   const getSidebarItems = (): SidebarItem[] => {
     const baseItems: SidebarItem[] = [
@@ -101,10 +103,83 @@ export default function SystemSidebar({ role, isCollapsed = false, onToggle }: S
   const menuItems = getSidebarItems();
 
   return (
-    <aside
+    <>
+      {/* Mobile hamburger button - visible only on small screens */}
+      <div className={cn("md:hidden fixed top-4 left-4 z-50", showMobile && "hidden")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowMobile(true)}
+          aria-label="Abrir navegación"
+          className="bg-white/90 dark:bg-gray-800/80 p-2 rounded-lg shadow-md border border-border/20"
+        >
+          <Menu className="h-5 w-5 text-foreground" />
+        </Button>
+      </div>
+
+      {/* Mobile drawer overlay */}
+      {showMobile && (
+        <div className="fixed inset-0 z-40 flex">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowMobile(false)}
+          />
+          <div className="relative w-64 h-full bg-white dark:bg-gray-950 p-4 overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xl font-bold tracking-tight text-primary">System Panel</p>
+                <p className="text-sm text-muted-foreground">{role.toUpperCase()}</p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setShowMobile(false)} aria-label="Cerrar navegación">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <Separator className="my-1 border-border/50" />
+
+            <nav className="flex flex-col gap-1 mt-3">
+              <TooltipProvider delayDuration={0}>
+                {menuItems.map((item) => {
+                  const IconComponent = item.icon;
+                  const baseStyles = "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer";
+                  let specificStyles = "";
+                  if (item.isLogout) specificStyles = "text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20";
+                  else if (item.isUserButton) specificStyles = "bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-primary/80 dark:hover:bg-primary/70";
+                  else specificStyles = "text-muted-foreground hover:bg-accent/50 hover:text-primary dark:hover:bg-gray-800 dark:hover:text-primary";
+
+                  const content = (
+                    <div className={cn(baseStyles, specificStyles)}>
+                      <IconComponent className="h-5 w-5" />
+                      <span>{item.label}</span>
+                    </div>
+                  );
+
+                  if (item.isLogout) {
+                    return (
+                      <Button key="logout-mobile" variant="ghost" className="w-full p-0" onClick={() => signOut({ callbackUrl: "/sys/login" })}>
+                        {content}
+                      </Button>
+                    );
+                  }
+
+                  return (
+                    <Link key={item.href + '-mobile'} href={item.href} passHref legacyBehavior>
+                      <a className="block w-full" onClick={() => setShowMobile(false)}>{content}</a>
+                    </Link>
+                  );
+                })}
+              </TooltipProvider>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      <aside
       className={cn(
-        "fixed left-0 top-0 z-50 flex h-screen flex-col border-r bg-background dark:bg-gray-950 transition-all duration-300 ease-in-out",
-        isCollapsed ? "w-16" : "w-64"
+  // Hidden on small screens, visible from md upwards. Keep fixed layout and collapse handling.
+  // Use explicit white background in light mode so content behind doesn't show through
+  "hidden md:fixed md:left-0 md:top-0 md:z-50 md:flex md:h-screen md:flex-col md:border-r md:bg-white md:shadow-sm dark:md:bg-gray-950 md:transition-all md:duration-300 md:ease-in-out",
+        isCollapsed ? "md:w-16" : "md:w-64"
       )}
     >
       <div className={cn("flex h-full flex-col gap-4 py-4", isCollapsed ? "px-2" : "px-4")}>
@@ -187,7 +262,7 @@ export default function SystemSidebar({ role, isCollapsed = false, onToggle }: S
                     key="logout"
                     variant="ghost"
                     asChild
-                    onClick={() => signOut({ callbackUrl: `${window.location.origin}/sys/login` })}
+                    onClick={() => signOut({ callbackUrl: "/sys/login" })}
                     className="h-auto w-full p-0"
                   >
                     {ItemContent}
@@ -206,5 +281,6 @@ export default function SystemSidebar({ role, isCollapsed = false, onToggle }: S
         </nav>
       </div>
     </aside>
+    </>
   );
 }

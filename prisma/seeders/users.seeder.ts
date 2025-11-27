@@ -12,33 +12,42 @@ export interface UserSeederResult {
   salesStaff: any[];
 }
 
+// Configuración de usuarios por rol
+const userConfig = {
+  admin: { count: 2, prefix: 'admin', displayPrefix: 'Administrador' },
+  sales: { count: 3, prefix: 'ventas', displayPrefix: 'Vendedor' },
+  stockroom: { count: 2, prefix: 'almacen', displayPrefix: 'Almacenero' },
+  client: { count: 10, prefix: 'cliente', displayPrefix: 'Cliente' },
+};
+
 export async function seedUsers(prisma: PrismaClient): Promise<UserSeederResult> {
   console.log('👥 Creando usuarios...');
-  const users = [];
+  const users: any[] = [];
   
-  for (let i = 0; i < 20; i++) {
-    const name = `${names[random(0, names.length - 1)]} ${lastNames[random(0, lastNames.length - 1)]}`;
-    const userName = `user${i + 1}`;
-    const hashedPassword = await bcrypt.hash('prueba123', 10);
-    
-    let role = 'client';
-    if (i < 2) role = 'admin';
-    else if (i < 4) role = 'sales';
-    else if (i < 6) role = 'stockroom';
-
-    const user = await prisma.user.create({
-      data: {
-        userName,
-        name,
-        phone: `+591 ${random(60000000, 79999999)}`,
-        password: hashedPassword,
-        role: role,
-        twoFactorEnabled: false,
-        statusAccount: 'active',
-      },
-    });
-    users.push(user);
+  // Hashear contraseña común: 123123
+  const hashedPassword = await bcrypt.hash('123123', 10);
+  
+  // Crear usuarios por cada rol
+  for (const [role, config] of Object.entries(userConfig)) {
+    for (let i = 1; i <= config.count; i++) {
+      const userName = `${config.prefix}${i}`;
+      const name = `${config.displayPrefix} ${i}`;
+      
+      const user = await prisma.user.create({
+        data: {
+          userName,
+          name,
+          phone: `+591 ${random(60000000, 79999999)}`,
+          password: hashedPassword,
+          role: role,
+          twoFactorEnabled: false,
+          statusAccount: 'active',
+        },
+      });
+      users.push(user);
+    }
   }
+  
   console.log(`✅ ${users.length} usuarios creados`);
 
   const admins = users.filter(u => u.role === 'admin');
