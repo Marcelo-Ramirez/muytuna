@@ -26,27 +26,23 @@ export async function GET(req: Request) {
     const skip = (page - 1) * limit;
     const take = limit;
 
-    // Convertir términos a minúsculas para búsqueda insensible a mayúsculas
-    const termLower = searchTerm.toLowerCase();
-    const filterLower = activeFilter?.toLowerCase();
-
     // Construir la cláusula WHERE
     const where: WhereClause = {};
 
     // Lógica para búsqueda (searchTerm)
     if (searchTerm) {
       where.OR = [
-        { name: { contains: termLower } },
-        { type: { contains: termLower } },
-        { flavor: { contains: termLower } },
+        { name: { contains: searchTerm } },
+        { type: { contains: searchTerm } },
+        { flavor: { contains: searchTerm } },
       ];
     }
 
     // Lógica para filtro de categoría (activeFilter)
     if (activeFilter && activeFilter !== 'All') {
       const filterConditions: WhereClause[] = [
-        { type: { equals: filterLower! } },
-        { flavor: { equals: filterLower! } },
+        { type: { equals: activeFilter } },
+        { flavor: { equals: activeFilter } },
       ];
 
       // Combinar búsqueda y filtro con lógica AND

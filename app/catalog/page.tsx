@@ -47,7 +47,10 @@ export default function CatalogPage() {
     // --- ESTADOS DE PAGINACIÓN ---
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false); 
-    const [isInitialLoad, setIsInitialLoad] = useState(true); 
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    
+    // --- ESTADOS DE FILTROS DINÁMICOS ---
+    const [flavors, setFlavors] = useState<string[]>([]); 
 
     // --- ESTADOS DE CARRITO Y MODALES (Mantenidos) ---
     const [cart, setCart] = useState<Cart>({});
@@ -64,6 +67,22 @@ export default function CatalogPage() {
         setIsLoginModalOpen(false);
         location.reload(); 
     };
+
+    // --- CARGAR SABORES DINÁMICAMENTE ---
+    useEffect(() => {
+        const fetchFlavors = async () => {
+            try {
+                const res = await fetch('/api/inventory/flavors');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.flavors)) {
+                    setFlavors(data.flavors);
+                }
+            } catch (err) {
+                console.error('Error al cargar sabores:', err);
+            }
+        };
+        fetchFlavors();
+    }, []);
 
     // --- FUNCIONES DE PAGINACIÓN/BÚSQUEDA ---
     
@@ -229,16 +248,13 @@ export default function CatalogPage() {
         setTimeout(() => globalThis.dispatchEvent(new Event('cartUpdate')), 0);
     };
 
-    const filterOptions = useMemo(() => (
-        [
-            { value: "All", label: "Todos los sabores" },
-            { value: "Mango", label: "Mango" },
-            { value: "Fresa", label: "Fresa" },
-            { value: "Arándano", label: "Arándano" },
-            { value: "Limón", label: "Limón" },
-            { value: "Piña", label: "Piña" },
-        ]
-    ), []);
+    const filterOptions = useMemo(() => {
+        const options = [{ value: "All", label: "Todos los sabores" }];
+        flavors.forEach(flavor => {
+            options.push({ value: flavor, label: flavor });
+        });
+        return options;
+    }, [flavors]);
 
     // Content for products rendering
     let content;
