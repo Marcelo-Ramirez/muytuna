@@ -190,8 +190,9 @@ model Order {
   paidAt      DateTime?   @map("paid_at")
   
   // Relaciones
-  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  items       OrderItem[]
+  user         User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+  yapePayments YapePayment[]  // Pagos Yape asociados a este pedido
   
   @@index([userId])
   @@index([status])
@@ -217,6 +218,40 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@map("Order_items")
+}
+
+// ============================================
+// PAGOS YAPE (registro de notificaciones)
+// ============================================
+
+model YapePayment {
+  id              Int       @id @default(autoincrement())
+  
+  // Información del pago
+  payerName       String    @map("payer_name")        // Nombre extraído de "QR DE [nombre]"
+  amount          Float                               // Monto en Bs
+  rawText         String    @map("raw_text")          // Texto completo de la notificación
+  
+  // Estado de procesamiento
+  status          String    @default("unmatched")     // unmatched | matched | manual | rejected
+  matchConfidence Float?    @map("match_confidence")  // Nivel de confianza del matching (0-100)
+  
+  // Relación con pedido (si se logró emparejar)
+  orderId         Int?      @map("order_id")
+  assignedBy      String?   @map("assigned_by")       // 'auto' | 'manual' | null
+  assignedAt      DateTime? @map("assigned_at")       // Cuándo se asignó
+  
+  // Timestamps
+  receivedAt      DateTime  @default(now()) @map("received_at")
+  processedAt     DateTime? @map("processed_at")
+  
+  // Relaciones
+  order           Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  
+  @@index([orderId])
+  @@index([status])
+  @@index([receivedAt])
+  @@map("Yape_payments")
 }
 
 model ProductMovement {

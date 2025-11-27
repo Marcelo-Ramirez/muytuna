@@ -245,7 +245,20 @@ export async function POST(req: NextRequest) {
     console.log(`   Nombre normalizado: ${normalizeName(payerName)}`);
     console.log(`   Monto: Bs ${amount.toFixed(2)}`);
 
-    // 5. BUSCAR PEDIDO PENDIENTE QUE COINCIDA
+    // 5. GUARDAR PAGO EN LA BASE DE DATOS (SIEMPRE)
+    let yapePayment = await prisma.yapePayment.create({
+      data: {
+        payerName: normalizeName(payerName),
+        amount,
+        rawText: text,
+        status: 'unmatched', // Se actualizará si encuentra match
+        receivedAt: new Date()
+      }
+    });
+
+    console.log(`💾 [YAPE] Pago registrado en BD con ID: ${yapePayment.id}`);
+
+    // 6. BUSCAR PEDIDO PENDIENTE QUE COINCIDA
     const pendingOrders = await prisma.order.findMany({
       where: {
         status: 'pending',
@@ -261,8 +274,9 @@ export async function POST(req: NextRequest) {
 
     console.log(`🔍 [YAPE] Buscando entre ${pendingOrders.length} pedidos pendientes...`);
 
-    // 6. BUSCAR COINCIDENCIA POR NOMBRE Y MONTO
+    // 7. BUSCAR COINCIDENCIA POR NOMBRE Y MONTO
     let matchedOrder = null;
+    let matchConfidence = 0;
     const tolerance = 0.50; // Tolerancia de Bs 0.50 en el monto
 
     for (const order of pendingOrders) {
@@ -277,29 +291,31 @@ export async function POST(req: NextRequest) {
 
       if (nameMatches && amountMatches) {
         matchedOrder = order;
+        matchConfidence = 95; // Alta confianza cuando nombre y monto coinciden
         console.log(`✅ [YAPE] ¡COINCIDENCIA ENCONTRADA! Pedido #${order.orderNumber}`);
         break;
       }
     }
 
-    // 7. SI NO HAY COINCIDENCIA EXACTA, BUSCAR SOLO POR MONTO (para casos especiales)
-    if (!matchedOrder) {
-      console.log(`⚠️ [YAPE] No se encontró coincidencia exacta. Buscando solo por monto...`);
-      
-      for (const order of pendingOrders) {
-        const amountMatches = Math.abs(order.totalAmount - amount) <= tolerance;
-        
-        if (amountMatches) {
-          console.log(`⚠️ [YAPE] Posible coincidencia por monto: Pedido #${order.orderNumber}`);
-          console.log(`      Pagador registrado: ${order.payerName}`);
-          console.log(`      Pagador en notificación: ${payerName}`);
-          // No marcar automáticamente, solo registrar para revisión manual
-        }
-      }
-    }
+    // 8. NO BUSCAR SOLO POR MONTO - Siempre requiere coincidencia de nombre
+    // Esto previene asignaciones incorrectas cuando dos pedidos tienen el mismo monto
 
-    // 8. MARCAR PEDIDO COMO PAGADO SI HAY COINCIDENCIA
+    // 9. MARCAR PEDIDO COMO PAGADO SI HAY COINCIDENCIA
     if (matchedOrder) {
+      // Actualizar el pago con el pedido encontrado
+      yapePayment = await prisma.yapePayment.update({
+        where: { id: yapePayment.id },
+        data: {
+          status: 'matched',
+          orderId: matchedOrder.id,
+          assignedBy: 'auto',
+          assignedAt: new Date(),
+          matchConfidence,
+          processedAt: new Date()
+        }
+      });
+
+      // Actualizar el pedido como pagado
       const updatedOrder = await prisma.order.update({
         where: { id: matchedOrder.id },
         data: {
@@ -317,6 +333,7 @@ export async function POST(req: NextRequest) {
       console.log(`   Cliente: ${updatedOrder.user?.name}`);
       console.log(`   Email: ${updatedOrder.user?.email}`);
       console.log(`   Total: Bs ${updatedOrder.totalAmount.toFixed(2)}`);
+      console.log(`   Pago ID: ${yapePayment.id} vinculado automáticamente`);
 
       // TODO: Enviar email de confirmación al cliente aquí
       // await sendPaymentConfirmationEmail(updatedOrder);
@@ -324,6 +341,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         status: 'success', 
         message: 'Pago confirmado automáticamente.',
+        paymentId: yapePayment.id,
         order: {
           orderNumber: updatedOrder.orderNumber,
           customerName: updatedOrder.user?.name,
@@ -333,15 +351,16 @@ export async function POST(req: NextRequest) {
       }, { status: 200 });
     }
 
-    // 9. SI NO HAY COINCIDENCIA, REGISTRAR PARA REVISIÓN MANUAL
+    // 10. SI NO HAY COINCIDENCIA, MANTENER COMO NO EMPAREJADO
     console.log(`❌ [YAPE] No se encontró pedido que coincida con:`);
     console.log(`   Nombre: ${payerName}`);
     console.log(`   Monto: Bs ${amount.toFixed(2)}`);
-    console.log(`   Se requiere conciliación manual.`);
+    console.log(`   Pago ID ${yapePayment.id} guardado para conciliación manual.`);
 
     return NextResponse.json({ 
       status: 'no_match', 
-      message: 'Pago recibido pero no se encontró pedido coincidente. Requiere revisión manual.',
+      message: 'Pago recibido pero no se encontró pedido coincidente. Guardado para revisión manual.',
+      paymentId: yapePayment.id,
       data: { payerName, amount }
     }, { status: 200 });
 
