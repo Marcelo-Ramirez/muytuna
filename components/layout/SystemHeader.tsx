@@ -74,7 +74,10 @@ export default function SystemHeader({ username = 'User', role = 'admin' }: Syst
             size="icon" 
             aria-label="Cerrar Sesión"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors"
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={async () => {
+              await signOut({ redirect: false });
+              window.location.href = '/';
+            }}
           >
             <LogOut className="h-5 w-5" />
           </Button>

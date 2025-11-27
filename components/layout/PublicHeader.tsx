@@ -396,7 +396,11 @@ export function PublicHeader() {
             <MobileNavList isActive={isActive} onNavigate={(href) => { router.push(href); setIsSidebarOpen(false); }} isAuthenticated={status === 'authenticated'} activeClasses={activeClasses} />
 
             {status === 'authenticated' && (
-              <button onClick={() => { signOut({ callbackUrl: "/" }); setIsSidebarOpen(false); }} className="flex items-center gap-3 w-full text-left p-2 rounded-md hover:bg-primary transition-colors text-foreground">
+              <button onClick={async () => { 
+                await signOut({ redirect: false }); 
+                setIsSidebarOpen(false); 
+                window.location.href = '/'; 
+              }} className="flex items-center gap-3 w-full text-left p-2 rounded-md hover:bg-primary transition-colors text-foreground">
                 <LogOut className="h-5 w-5" />
                 <span>Cerrar Sesión</span>
               </button>

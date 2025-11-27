@@ -248,5 +248,9 @@ export const authOptions: AuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET || 'tu-secreto-aqui',
+  pages: {
+    signOut: '/',
+  },
+  useSecureCookies: process.env.NODE_ENV === 'production',
 };
              

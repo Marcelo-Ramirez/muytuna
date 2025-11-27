@@ -27,8 +27,9 @@ export default function ProfilePage() {
     user?.email?.charAt(0).toUpperCase() ??
     "U";
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: "/" });
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
+    window.location.href = '/';
   };
 
   return (
